@@ -1,0 +1,44 @@
+.landing-container {
+  text-align: center;
+  padding: 60px 20px;
+  background: #ffeb3b; /* bold yellow */
+  color: #1a1a1a;
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+}
+
+.logo {
+  max-height: 80px;
+  max-width: 120px;
+  width: auto;
+  height: auto;
+  margin-bottom: 20px;
+  object-fit: contain;
+}
+
+.story {
+  max-width: 600px;
+  margin: 0 auto 30px auto;
+  line-height: 1.6;
+  font-size: 1rem;
+}
+
+.join-button {
+  background-color: #000;
+  color: #ffeb3b;
+  border: none;
+  padding: 15px 30px;
+  font-size: 1.2rem;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.3s ease;
+}
+
+.join-button:hover {
+  background-color: #222;
+}
+
+  
