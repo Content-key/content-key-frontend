@@ -10,8 +10,9 @@ function Login() {
     e.preventDefault();
 
     try {
-      const response = await fetch(`${process.env.REACT_APP_API_URL}/api/auth/login`, {
+      console.log("ENV API:", process.env.REACT_APP_API_URL); // ✅ Logs which API URL is being used
 
+      const response = await fetch(`${process.env.REACT_APP_API_URL}/api/auth/login`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email, password }),
@@ -26,6 +27,7 @@ function Login() {
       }
 
       localStorage.setItem('token', data.token);
+
       // Redirect based on role
       if (data.user.role === 'creator') {
         navigate('/dashboard/creator');
