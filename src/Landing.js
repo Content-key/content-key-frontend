@@ -1,7 +1,7 @@
+// Triggering redeploy for updated landing
 import { useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import './Landing.css';
-
 function Landing() {
   const navigate = useNavigate();
 
