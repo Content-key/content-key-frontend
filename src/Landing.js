@@ -14,7 +14,7 @@ function Landing() {
     <div className="landing-container">
       <img src="/logo.jpeg" alt="Content Key Logo" className="logo" />
 
-      <h1 className="main-headline">Getting Ready to Launch Something Big</h1>
+      <h1 className="main-headline">Launching Something Big Very Soon</h1>
 
       <p className="story">
         Content Key is almost here — a platform built to help creators work with real sponsors, monetize videos, and treat content like a business. You're not just posting... you're preparing.
