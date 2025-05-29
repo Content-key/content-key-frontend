@@ -1,6 +1,8 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 
+console.log("🌍 Deployed ENV:", process.env.REACT_APP_API_URL); // ✅ Log shows at page load
+
 function Login() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -10,7 +12,7 @@ function Login() {
     e.preventDefault();
 
     try {
-      console.log("ENV API:", process.env.REACT_APP_API_URL); // ✅ This confirms your build is using the right URL
+      console.log("ENV API:", process.env.REACT_APP_API_URL);
 
       const response = await fetch(`${process.env.REACT_APP_API_URL}/api/auth/login`, {
         method: 'POST',
@@ -28,7 +30,6 @@ function Login() {
 
       localStorage.setItem('token', data.token);
 
-      // Redirect based on role
       if (data.user.role === 'creator') {
         navigate('/dashboard/creator');
       } else if (data.user.role === 'sponsor') {

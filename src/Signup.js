@@ -1,6 +1,8 @@
 import React, { useState } from 'react';
 import axios from 'axios';
 
+console.log("🌍 Deployed ENV:", process.env.REACT_APP_API_URL); // ✅ Log shows at page load
+
 function Signup() {
   const [formData, setFormData] = useState({
     email: '',
