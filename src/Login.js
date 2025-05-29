@@ -10,7 +10,7 @@ function Login() {
     e.preventDefault();
 
     try {
-      console.log("ENV API:", process.env.REACT_APP_API_URL); // ✅ Logs which API URL is being used
+      console.log("ENV API:", process.env.REACT_APP_API_URL); // ✅ This confirms your build is using the right URL
 
       const response = await fetch(`${process.env.REACT_APP_API_URL}/api/auth/login`, {
         method: 'POST',
