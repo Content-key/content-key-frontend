@@ -1,13 +1,13 @@
-// Triggering redeploy for updated landing
 import { useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import './Landing.css';
+
 function Landing() {
   const navigate = useNavigate();
 
-  // Set dynamic tab title
+  // Set the tab title
   useEffect(() => {
-    document.title = 'Content Key – Testing in Progress';
+    document.title = 'Content Key – Unlock Your Journey';
   }, []);
 
   return (
@@ -17,7 +17,8 @@ function Landing() {
       <h1 className="main-headline">Launching Something Big Very Soon</h1>
 
       <p className="story">
-        Content Key is almost here — a platform built to help creators work with real sponsors, monetize videos, and treat content like a business. You're not just posting... you're preparing.
+        Content Key is almost here — a platform built to help creators work with real sponsors,
+        monetize videos, and treat content like a business. You're not just posting... you're preparing.
       </p>
 
       <div className="button-group">
