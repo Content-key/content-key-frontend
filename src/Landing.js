@@ -1,3 +1,5 @@
+// Trigger Vercel redeploy (minor update – extra space)
+
 import { useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import './Landing.css';
@@ -38,5 +40,3 @@ function Landing() {
 }
 
 export default Landing;
-
-// Trigger Vercel deployment sync
