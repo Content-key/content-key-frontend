@@ -1,16 +1,23 @@
+import { useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import './Landing.css';
 
 function Landing() {
   const navigate = useNavigate();
 
+  // Set dynamic tab title
+  useEffect(() => {
+    document.title = 'Content Key – Testing in Progress';
+  }, []);
+
   return (
     <div className="landing-container">
       <img src="/logo.jpeg" alt="Content Key Logo" className="logo" />
-      <h1>Unlock Your Journey</h1>
+
+      <h1 className="main-headline">Getting Ready to Launch Something Big</h1>
 
       <p className="story">
-        Content Key is here to help creators turn their videos into income — through sponsorships, licensing, and tools that treat your content like a real business.
+        Content Key is almost here — a platform built to help creators work with real sponsors, monetize videos, and treat content like a business. You're not just posting... you're preparing.
       </p>
 
       <div className="button-group">
@@ -21,6 +28,10 @@ function Landing() {
           Login
         </button>
       </div>
+
+      <p className="motivation-line">
+        This is your early look. Testing in progress. Let’s build the future together.
+      </p>
     </div>
   );
 }
