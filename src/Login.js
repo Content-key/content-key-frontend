@@ -1,7 +1,9 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 
-console.log("🌍 Deployed ENV:", process.env.REACT_APP_API_URL); // ✅ Log shows at page load
+// 🌍 Confirm deployed API env + force rebuild
+console.log("🌍 Deployed ENV:", process.env.REACT_APP_API_URL);
+console.log("💥 Forced rebuild:", Date.now());
 
 function Login() {
   const [email, setEmail] = useState('');
@@ -12,8 +14,6 @@ function Login() {
     e.preventDefault();
 
     try {
-      console.log("ENV API:", process.env.REACT_APP_API_URL);
-
       const response = await fetch(`${process.env.REACT_APP_API_URL}/api/auth/login`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -30,6 +30,7 @@ function Login() {
 
       localStorage.setItem('token', data.token);
 
+      // Redirect based on role
       if (data.user.role === 'creator') {
         navigate('/dashboard/creator');
       } else if (data.user.role === 'sponsor') {
@@ -44,7 +45,7 @@ function Login() {
   };
 
   return (
-    <div className="login-container">
+    <div className="login-container" style={containerStyle}>
       <h2>Login</h2>
       <form onSubmit={handleLogin}>
         <input
@@ -53,6 +54,7 @@ function Login() {
           value={email}
           onChange={(e) => setEmail(e.target.value)}
           required
+          style={inputStyle}
         />
         <input
           type="password"
@@ -60,11 +62,43 @@ function Login() {
           value={password}
           onChange={(e) => setPassword(e.target.value)}
           required
+          style={inputStyle}
         />
-        <button type="submit">Log In</button>
+        <button type="submit" style={buttonStyle}>Log In</button>
       </form>
     </div>
   );
 }
+
+const containerStyle = {
+  backgroundColor: '#ffeb3b',
+  color: '#1a1a1a',
+  minHeight: '100vh',
+  display: 'flex',
+  flexDirection: 'column',
+  alignItems: 'center',
+  justifyContent: 'center',
+  fontFamily: 'sans-serif',
+};
+
+const inputStyle = {
+  display: 'block',
+  width: '100%',
+  maxWidth: '300px',
+  padding: '10px',
+  marginBottom: '15px',
+  border: '1px solid #ccc',
+  borderRadius: '4px',
+};
+
+const buttonStyle = {
+  backgroundColor: '#000',
+  color: '#ffeb3b',
+  border: 'none',
+  padding: '12px 24px',
+  borderRadius: '6px',
+  fontWeight: 'bold',
+  cursor: 'pointer',
+};
 
 export default Login;
