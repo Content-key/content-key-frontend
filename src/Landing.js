@@ -12,7 +12,7 @@ function Landing() {
 
   return (
     <div className="landing-container">
-     <img src="/logo192.png" alt="Content Key Logo" className="logo" />
+      <img src="/logo192.png" alt="Content Key Logo" className="logo" />
 
       <h1 className="main-headline">Launching Something Big Very Soon</h1>
 
@@ -38,3 +38,5 @@ function Landing() {
 }
 
 export default Landing;
+
+// Trigger Vercel deployment sync
