@@ -1,0 +1,30 @@
+/* DashboardIntro.css */
+.dashboard-intro-container {
+    max-width: 600px;
+    margin: 50px auto;
+    background-color: #fff8dc;
+    border-radius: 16px;
+    padding: 40px;
+    text-align: center;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+  }
+  
+  .dashboard-intro-container h1 {
+    font-size: 2rem;
+    margin-bottom: 10px;
+  }
+  
+  .dashboard-intro-container p {
+    font-size: 1.1rem;
+    margin-bottom: 20px;
+  }
+  
+  .dashboard-intro-container button {
+    padding: 12px 20px;
+    background-color: gold;
+    border: none;
+    border-radius: 10px;
+    font-weight: bold;
+    cursor: pointer;
+  }
+  

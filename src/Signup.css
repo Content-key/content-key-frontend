@@ -1,0 +1,96 @@
+.signup-container {
+  background-color: #fefefe;
+  min-height: 100vh;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  font-family: 'Segoe UI', sans-serif;
+  padding: 0;
+}
+
+.signup-form {
+  background: #f7c600; /* Yellow background */
+  border-radius: 12px;
+  padding: 40px;
+  width: 90%;
+  max-width: 850px;
+  height: 95vh; /* Vertically long */
+  overflow-y: auto;
+  box-shadow: 0 0 15px rgba(0, 0, 0, 0.1);
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-start;
+}
+
+.signup-form h1 {
+  font-size: 32px;
+  text-align: center;
+  margin-bottom: 25px;
+  color: #222;
+}
+
+.row {
+  display: flex;
+  flex-direction: column; /* Stack inputs vertically */
+  margin-bottom: 20px;
+  width: 100%;
+}
+
+.row input,
+.row select {
+  width: 100%;
+  padding: 14px;
+  font-size: 16px;
+  border: 1px solid #ccc;
+  border-radius: 6px;
+  margin-top: 8px;
+}
+
+.checkbox-row {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin: 20px 0;
+  width: 100%;
+}
+
+.checkbox-row label {
+  font-weight: 500;
+}
+
+.checkbox-row input[type="url"] {
+  width: 100%;
+  padding: 12px;
+  margin-left: 0;
+  border-radius: 6px;
+  border: 1px solid #ccc;
+}
+
+button[type='submit'] {
+  background-color: #000;
+  border: none;
+  color: #fff;
+  padding: 14px;
+  font-size: 18px;
+  font-weight: bold;
+  width: 100%;
+  border-radius: 10px;
+  cursor: pointer;
+  margin-top: auto;
+  transition: background 0.3s ease;
+}
+
+button[type='submit']:hover {
+  background-color: #333;
+}
+
+/* Compact row for City, State, Zip */
+.row-compact {
+  display: flex;
+  gap: 10px;
+}
+
+.row-compact input,
+.row-compact select {
+  flex: 1;
+}

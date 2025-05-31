@@ -1,40 +1,53 @@
 import React, { useState } from 'react';
-import axios from 'axios';
 import { useNavigate } from 'react-router-dom';
+import axios from 'axios';
+import './Login.css';
 
 function Login() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [error, setError] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
+  const [message, setMessage] = useState('');
   const navigate = useNavigate();
+
+  const togglePasswordVisibility = () => {
+    setShowPassword((prev) => !prev);
+  };
 
   const handleLogin = async (e) => {
     e.preventDefault();
+
+    const API_BASE_URL =
+      window.location.hostname === 'localhost'
+        ? 'http://localhost:5000'
+        : process.env.REACT_APP_API_URL;
+
     try {
-      const response = await axios.post(`${process.env.REACT_APP_API_URL}/login`, {
+      const res = await axios.post(`${API_BASE_URL}/api/login`, {
         email,
-        password,
+        password
       });
 
-      localStorage.setItem('token', response.data.token);
+      const { token, user } = res.data;
+      localStorage.setItem('token', token);
+      localStorage.setItem('user', JSON.stringify(user));
 
       // Redirect based on role
-      if (response.data.role === 'creator') {
-        navigate('/dashboard/creator');
-      } else if (response.data.role === 'sponsor') {
-        navigate('/dashboard/sponsor');
-      } else {
-        navigate('/profile');
+      if (user.role === 'creator') {
+        navigate('/creator-dashboard');
+      } else if (user.role === 'sponsor') {
+        navigate('/sponsor-dashboard');
       }
     } catch (err) {
-      setError('Invalid email or password');
+      console.error('Login error:', err.response?.data || err.message);
+      setMessage('❌ Invalid email or password');
     }
   };
 
   return (
-    <div className="auth-container">
-      <h2>Login</h2>
-      <form onSubmit={handleLogin}>
+    <div className="login-container">
+      <form className="login-form" onSubmit={handleLogin}>
+        <h2>Login</h2>
         <input
           type="email"
           placeholder="Email"
@@ -42,18 +55,22 @@ function Login() {
           onChange={(e) => setEmail(e.target.value)}
           required
         />
-
         <input
-          type="password"
+          type={showPassword ? 'text' : 'password'}
           placeholder="Password"
           value={password}
           onChange={(e) => setPassword(e.target.value)}
           required
         />
-
-        {error && <p className="error">{error}</p>}
-
+        <label style={{ display: 'block', marginTop: '10px' }}>
+          <input
+            type="checkbox"
+            checked={showPassword}
+            onChange={togglePasswordVisibility}
+          /> Show Password
+        </label>
         <button type="submit">Login</button>
+        {message && <p className="message">{message}</p>}
       </form>
     </div>
   );

@@ -1,146 +1,153 @@
 import React, { useState } from 'react';
 import axios from 'axios';
-
-console.log("🌍 Deployed ENV:", process.env.REACT_APP_API_URL); // ✅ Log shows at page load
+import { useNavigate } from 'react-router-dom';
+import './Signup.css';
 
 function Signup() {
+  const navigate = useNavigate();
+
   const [formData, setFormData] = useState({
     email: '',
     password: '',
     phone: '',
     role: 'creator',
-    businessAddress: '',
-    homeAddress: '',
+    fullName: '',
+    stageName: '',
+    businessName: '',
+    streetAddress: '',
+    city: '',
+    state: '',
+    zipCode: '',
     contentType: '',
     platforms: [],
-    otherPlatform: '',
+    platformUrls: {
+      YouTube: '',
+      Instagram: '',
+      TikTok: '',
+      Facebook: '',
+      Other: ''
+    }
   });
 
-  const platformsList = ['YouTube', 'TikTok', 'Instagram', 'Facebook', 'Twitch'];
+  const platformsList = ['YouTube', 'Instagram', 'TikTok', 'Facebook', 'Other'];
+  const usStates = ['AL','AK','AZ','AR','CA','CO','CT','DE','FL','GA','HI','ID','IL','IN','IA','KS','KY','LA','ME','MD','MA','MI','MN','MS','MO','MT','NE','NV','NH','NJ','NM','NY','NC','ND','OH','OK','OR','PA','RI','SC','SD','TN','TX','UT','VT','VA','WA','WV','WI','WY'];
 
   const handleChange = (e) => {
-    const { name, value, type, checked } = e.target;
+    const { name, value, checked } = e.target;
 
-    if (type === 'checkbox') {
-      let updated = [...formData.platforms];
-      if (checked) {
-        updated.push(value);
-      } else {
-        updated = updated.filter((p) => p !== value);
-      }
-      setFormData({ ...formData, platforms: updated });
+    if (platformsList.includes(name)) {
+      setFormData((prev) => {
+        const updatedPlatforms = checked
+          ? [...prev.platforms, name]
+          : prev.platforms.filter((p) => p !== name);
+        return { ...prev, platforms: updatedPlatforms };
+      });
     } else {
-      setFormData({ ...formData, [name]: value });
+      setFormData((prev) => ({ ...prev, [name]: value }));
     }
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+
+    const API_BASE_URL =
+      window.location.hostname === 'localhost'
+        ? 'http://localhost:5000'
+        : process.env.REACT_APP_API_URL;
+
     try {
-      await axios.post(`${process.env.REACT_APP_API_URL}/api/auth/signup`, formData);
-      alert('Signup successful!');
+      const res = await axios.post(`${API_BASE_URL}/api/signup`, formData);
+      console.log('Signup successful:', res.data);
+      alert('✅ Signup successful! Please check your email for confirmation.');
+      navigate('/');
     } catch (err) {
-      console.error('Signup failed:', err);
-      alert('There was an issue. Please try again.');
+      console.error('Signup failed:', err.response?.data || err.message);
+      alert('Signup failed. Please check your information and try again.');
     }
   };
 
   return (
-    <div
-      style={{
-        backgroundColor: '#ffeb3b',
-        color: '#1a1a1a',
-        minHeight: '100vh',
-        padding: '40px 20px',
-        maxWidth: '600px',
-        margin: '0 auto',
-        fontFamily: 'sans-serif',
-      }}
-    >
-      <h2 style={{ textAlign: 'center' }}>Join Content Key</h2>
-      <p style={{ textAlign: 'center', marginBottom: '30px' }}>
-        You’re one of the first to join the future of content creation and sponsorship.
-        This is a trial version — your feedback shapes the platform.
-      </p>
+    <div className="signup-container">
+      <form className="signup-form" onSubmit={handleSubmit}>
+        <h1><strong>Join Content Key</strong></h1>
+        <p style={{ textAlign: 'center', fontSize: '16px', marginTop: '-10px', marginBottom: '20px' }}>
+          You’re one of the first to join the future of content creation and sponsorship.<br />
+          <em>This is a trial version – your feedback shapes the platform.</em>
+        </p>
 
-      <form onSubmit={handleSubmit}>
-        <label>Email:</label>
-        <input type="email" name="email" value={formData.email} onChange={handleChange} required style={inputStyle} />
+        <div className="row">
+          <input name="email" placeholder="Email" onChange={handleChange} required />
+          <input name="password" type="password" placeholder="Password" onChange={handleChange} required />
+          <input name="phone" placeholder="Phone" onChange={handleChange} />
+          <select name="role" onChange={handleChange}>
+            <option value="creator">Creator</option>
+            <option value="sponsor">Sponsor</option>
+          </select>
+        </div>
 
-        <label>Password:</label>
-        <input type="password" name="password" value={formData.password} onChange={handleChange} required style={inputStyle} />
+        <div className="row">
+          <input name="fullName" placeholder="Full Name" onChange={handleChange} />
+          <input name="stageName" placeholder="Stage Name (if any)" onChange={handleChange} />
+          <input name="businessName" placeholder="Business Name (Sponsors Only)" onChange={handleChange} />
+        </div>
 
-        <label>Phone:</label>
-        <input type="text" name="phone" value={formData.phone} onChange={handleChange} required style={inputStyle} />
+        <div className="row">
+          <input name="streetAddress" placeholder="Street Address" onChange={handleChange} />
+        </div>
 
-        <label>Role:</label>
-        <select name="role" value={formData.role} onChange={handleChange} style={inputStyle}>
-          <option value="creator">Creator</option>
-          <option value="sponsor">Sponsor</option>
-        </select>
+        {/* ✅ City, State, Zip on one row */}
+        <div className="row row-compact">
+          <input name="city" placeholder="City" onChange={handleChange} />
+          <select name="state" value={formData.state} onChange={handleChange}>
+            <option value="">State</option>
+            {usStates.map((abbr) => (
+              <option key={abbr} value={abbr}>{abbr}</option>
+            ))}
+          </select>
+          <input name="zipCode" placeholder="Zip Code" onChange={handleChange} />
+        </div>
 
-        {formData.role === 'sponsor' && (
-          <>
-            <label>Business Address:</label>
-            <input type="text" name="businessAddress" value={formData.businessAddress} onChange={handleChange} style={inputStyle} />
-          </>
-        )}
+        <div className="row">
+          <input name="contentType" placeholder="What kind of content do you post?" onChange={handleChange} />
+        </div>
 
-        {formData.role === 'creator' && (
-          <>
-            <label>Home Address:</label>
-            <input type="text" name="homeAddress" value={formData.homeAddress} onChange={handleChange} style={inputStyle} />
-
-            <label>Type of Content:</label>
-            <input type="text" name="contentType" value={formData.contentType} onChange={handleChange} style={inputStyle} />
-
-            <label>What platforms do you post on?</label>
-            {platformsList.map((platform) => (
-              <div key={platform}>
+        <div className="checkbox-row">
+          <label>Where do you post content?</label>
+          {platformsList.map((platform) => (
+            <div key={platform}>
+              <label>
                 <input
                   type="checkbox"
-                  name="platforms"
-                  value={platform}
+                  name={platform}
                   checked={formData.platforms.includes(platform)}
                   onChange={handleChange}
                 />
-                <label style={{ marginLeft: '8px' }}>{platform}</label>
-              </div>
-            ))}
+                {platform}
+              </label>
+              <input
+                type="url"
+                name={`platformUrl-${platform}`}
+                placeholder={`${platform} URL`}
+                value={formData.platformUrls[platform]}
+                onChange={(e) => {
+                  const value = e.target.value;
+                  setFormData((prev) => ({
+                    ...prev,
+                    platformUrls: {
+                      ...prev.platformUrls,
+                      [platform]: value
+                    }
+                  }));
+                }}
+              />
+            </div>
+          ))}
+        </div>
 
-            <label>Other Platform:</label>
-            <input type="text" name="otherPlatform" value={formData.otherPlatform} onChange={handleChange} style={inputStyle} />
-          </>
-        )}
-
-        <button
-          type="submit"
-          style={{
-            backgroundColor: '#000',
-            color: '#ffeb3b',
-            border: 'none',
-            padding: '12px 24px',
-            borderRadius: '6px',
-            fontWeight: 'bold',
-            cursor: 'pointer',
-            marginTop: '20px',
-            width: '100%',
-          }}
-        >
-          Sign Up
-        </button>
+        <button type="submit">Join Now</button>
       </form>
     </div>
   );
 }
-
-const inputStyle = {
-  display: 'block',
-  width: '100%',
-  padding: '10px',
-  marginBottom: '15px',
-  border: '1px solid #ccc',
-  borderRadius: '4px',
-};
 
 export default Signup;

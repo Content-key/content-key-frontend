@@ -1,0 +1,109 @@
+.login-container {
+  background-color: #fefefe;
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  padding: 20px;
+  position: relative;
+}
+
+.home-link {
+  position: absolute;
+  top: 20px;
+  left: 30px;
+  text-decoration: none;
+  font-weight: bold;
+  color: #000;
+  background: #f7c600;
+  padding: 10px 14px;
+  border-radius: 8px;
+  box-shadow: 0 0 5px rgba(0,0,0,0.1);
+}
+
+.login-grid {
+  display: flex;
+  flex: 1;
+  justify-content: center;
+  align-items: center;
+  gap: 80px;
+  padding-top: 80px;
+  flex-wrap: wrap;
+}
+
+.login-left {
+  max-width: 400px;
+  text-align: left;
+}
+
+.login-left h1 {
+  font-size: 36px;
+  color: #000;
+}
+
+.login-left p {
+  font-size: 18px;
+  margin-top: 10px;
+}
+
+.tagline {
+  margin-top: 20px;
+  font-weight: bold;
+  font-size: 20px;
+  color: #111;
+}
+
+.login-box {
+  background: #f7c600;
+  padding: 40px;
+  width: 100%;
+  max-width: 400px;
+  border-radius: 14px;
+  box-shadow: 0 0 15px rgba(0, 0, 0, 0.15);
+  display: flex;
+  flex-direction: column;
+}
+
+.login-box h2 {
+  text-align: center;
+  margin-bottom: 20px;
+  color: #000;
+}
+
+.login-box input {
+  padding: 14px;
+  margin-bottom: 15px;
+  font-size: 16px;
+  border: 1px solid #ccc;
+  border-radius: 8px;
+}
+
+.login-box button {
+  background-color: #000;
+  color: #fff;
+  padding: 14px;
+  font-size: 18px;
+  border: none;
+  border-radius: 10px;
+  cursor: pointer;
+  font-weight: bold;
+  transition: background 0.3s ease;
+}
+
+.login-box button:hover {
+  background-color: #333;
+}
+
+.error {
+  color: red;
+  text-align: center;
+  margin-bottom: 10px;
+}
+.forgot-link {
+  text-align: center;
+  margin-top: 10px;
+}
+.forgot-link a {
+  color: #000;
+  text-decoration: underline;
+  font-size: 14px;
+}

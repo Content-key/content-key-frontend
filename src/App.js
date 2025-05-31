@@ -1,13 +1,15 @@
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 import Signup from './Signup';
 import Login from './Login';
+import ForgotPassword from './ForgotPassword';
 import ResetPassword from './ResetPassword';
 import Profile from './Profile';
 import PrivateRoute from './PrivateRoute';
 import Landing from './Landing';
-import ProtectedRoute from './ProtectedRoute'; // ✅ this is all you need
+import ProtectedRoute from './ProtectedRoute';
 import CreatorDashboard from './pages/CreatorDashboard';
 import SponsorDashboard from './pages/SponsorDashboard';
+import DashboardIntro from './DashboardIntro'; // ✅ NEW
 
 function App() {
   return (
@@ -16,7 +18,10 @@ function App() {
         <Route path="/" element={<Landing />} />
         <Route path="/signup" element={<Signup />} />
         <Route path="/login" element={<Login />} />
-        <Route path="/reset-password" element={<ResetPassword />} />
+        <Route path="/forgot-password" element={<ForgotPassword />} />
+        <Route path="/reset-password/:token" element={<ResetPassword />} />
+        <Route path="/intro" element={<DashboardIntro />} /> {/* ✅ NEW */}
+
         <Route
           path="/profile"
           element={
