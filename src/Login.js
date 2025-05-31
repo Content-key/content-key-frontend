@@ -32,11 +32,12 @@ function Login() {
       localStorage.setItem('token', token);
       localStorage.setItem('user', JSON.stringify(user));
 
-      // Redirect based on role
       if (user.role === 'creator') {
-        navigate('/creator-dashboard');
+        navigate('/dashboard/creator');
       } else if (user.role === 'sponsor') {
-        navigate('/sponsor-dashboard');
+        navigate('/dashboard/sponsor');
+      } else {
+        navigate('/');
       }
     } catch (err) {
       console.error('Login error:', err.response?.data || err.message);
@@ -46,32 +47,39 @@ function Login() {
 
   return (
     <div className="login-container">
-      <form className="login-form" onSubmit={handleLogin}>
-        <h2>Login</h2>
-        <input
-          type="email"
-          placeholder="Email"
-          value={email}
-          onChange={(e) => setEmail(e.target.value)}
-          required
-        />
-        <input
-          type={showPassword ? 'text' : 'password'}
-          placeholder="Password"
-          value={password}
-          onChange={(e) => setPassword(e.target.value)}
-          required
-        />
-        <label style={{ display: 'block', marginTop: '10px' }}>
+      <div className="login-box">
+        <h1 className="brand-title">Content Key</h1>
+        <form onSubmit={handleLogin}>
           <input
-            type="checkbox"
-            checked={showPassword}
-            onChange={togglePasswordVisibility}
-          /> Show Password
-        </label>
-        <button type="submit">Login</button>
-        {message && <p className="message">{message}</p>}
-      </form>
+            type="email"
+            placeholder="Email"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            required
+          />
+          <input
+            type={showPassword ? 'text' : 'password'}
+            placeholder="Password"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            required
+          />
+          <label style={{ marginTop: '10px', display: 'block', fontSize: '14px' }}>
+            <input
+              type="checkbox"
+              checked={showPassword}
+              onChange={togglePasswordVisibility}
+              style={{ marginRight: '5px' }}
+            />
+            Show Password
+          </label>
+          <button type="submit">Login</button>
+          {message && <p className="message">{message}</p>}
+        </form>
+        <p className="footer-note">
+          Forgot your password? <a href="/forgot-password">Reset it</a>
+        </p>
+      </div>
     </div>
   );
 }
