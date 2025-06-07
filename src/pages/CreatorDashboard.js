@@ -17,6 +17,19 @@ function CreatorDashboard() {
     navigate('/');
   };
 
+  const [userName, setUserName] = useState('');
+
+useEffect(() => {
+  const storedUser = localStorage.getItem('user');
+  if (storedUser) {
+    const parsedUser = JSON.parse(storedUser);
+    setUserName(parsedUser.stageName || parsedUser.fullName || 'Creator');
+  }
+
+  handleTabClick(view); // leave this
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+}, []);
+
   const fetchAcceptedJobs = async () => {
     const token = localStorage.getItem('token');
     const res = await fetch(`${process.env.REACT_APP_API_URL}/api/jobs/my-jobs`, {
@@ -150,6 +163,7 @@ function CreatorDashboard() {
     <div className="dashboard-wrapper">
       <div className="form-section">
         <h1>Creator Dashboard</h1>
+        <h2 style={{ marginBottom: '10px' }}>👋 Welcome, {userName}!</h2>
         <div className="tabs">
           <button className={view === 'upForGrabs' ? 'active-tab' : ''} onClick={() => handleTabClick('upForGrabs')}>Up for Grabs</button>
           <button className={view === 'localJobs' ? 'active-tab' : ''} onClick={() => handleTabClick('localJobs')}>Local Jobs</button>

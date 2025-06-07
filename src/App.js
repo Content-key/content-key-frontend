@@ -9,7 +9,9 @@ import Landing from './Landing';
 import ProtectedRoute from './ProtectedRoute';
 import CreatorDashboard from './pages/CreatorDashboard';
 import SponsorDashboard from './pages/SponsorDashboard';
-import DashboardIntro from './DashboardIntro'; // ✅ NEW
+import DashboardIntro from './DashboardIntro';
+import EmailConfirm from './pages/EmailConfirm'; // ✅ Email confirmation page
+import ResendEmail from './pages/ResendEmail'; // ✅ (Create this page for resending confirmation email)
 
 function App() {
   return (
@@ -20,7 +22,9 @@ function App() {
         <Route path="/login" element={<Login />} />
         <Route path="/forgot-password" element={<ForgotPassword />} />
         <Route path="/reset-password/:token" element={<ResetPassword />} />
-        <Route path="/intro" element={<DashboardIntro />} /> {/* ✅ NEW */}
+        <Route path="/confirm-email/:token" element={<EmailConfirm />} />
+        <Route path="/resend-confirmation" element={<ResendEmail />} /> {/* ✅ New route */}
+        <Route path="/intro" element={<DashboardIntro />} />
 
         <Route
           path="/profile"

@@ -8,6 +8,7 @@ function Login() {
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [message, setMessage] = useState('');
+  const [showResend, setShowResend] = useState(false);
   const navigate = useNavigate();
 
   const togglePasswordVisibility = () => {
@@ -25,10 +26,17 @@ function Login() {
     try {
       const res = await axios.post(`${API_BASE_URL}/api/login`, {
         email,
-        password
+        password,
       });
 
       const { token, user } = res.data;
+
+      if (!user.isEmailConfirmed) {
+        setMessage('⚠️ Please confirm your email before logging in.');
+        setShowResend(true);
+        return;
+      }
+
       localStorage.setItem('token', token);
       localStorage.setItem('user', JSON.stringify(user));
 
@@ -42,6 +50,7 @@ function Login() {
     } catch (err) {
       console.error('Login error:', err.response?.data || err.message);
       setMessage('❌ Invalid email or password');
+      setShowResend(false);
     }
   };
 
@@ -75,6 +84,11 @@ function Login() {
           </label>
           <button type="submit">Login</button>
           {message && <p className="message">{message}</p>}
+          {showResend && (
+            <p className="resend-note">
+              Didn’t get the confirmation email? <a href="/resend-confirmation">Resend Email</a>
+            </p>
+          )}
         </form>
         <p className="footer-note">
           Forgot your password? <a href="/forgot-password">Reset it</a>

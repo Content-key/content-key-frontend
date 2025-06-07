@@ -20,6 +20,18 @@ function SponsorDashboard() {
     agentPhone: '540-642-6867'
   });
 
+  const [userName, setUserName] = useState('');
+
+useEffect(() => {
+  const storedUser = localStorage.getItem('user');
+  if (storedUser) {
+    const parsedUser = JSON.parse(storedUser);
+    setUserName(parsedUser.fullName || parsedUser.businessName || 'Sponsor');
+  }
+
+  fetchJobs(); // leave this as-is
+}, []);
+
   const handleLogout = () => {
     localStorage.clear();
     navigate('/');
@@ -136,7 +148,9 @@ function SponsorDashboard() {
   return (
     <div className="dashboard-wrapper">
       <div className="form-section">
-        <h1>Sponsor Dashboard</h1>
+      <h1>Sponsor Dashboard</h1>
+<h2 style={{ marginBottom: '10px' }}>👋 Welcome, {userName}!</h2>
+
 
         <form onSubmit={handleSubmit} className="job-form">
           <input name="title" value={formData.title} onChange={handleChange} placeholder="Job Title" required />

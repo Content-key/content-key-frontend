@@ -49,22 +49,30 @@ function Signup() {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-
+  
     const API_BASE_URL =
       window.location.hostname === 'localhost'
         ? 'http://localhost:5000'
         : process.env.REACT_APP_API_URL;
-
+  
     try {
       const res = await axios.post(`${API_BASE_URL}/api/signup`, formData);
       console.log('Signup successful:', res.data);
       alert('✅ Signup successful! Please check your email for confirmation.');
       navigate('/');
     } catch (err) {
-      console.error('Signup failed:', err.response?.data || err.message);
-      alert('Signup failed. Please check your information and try again.');
+      const backendMsg = err?.response?.data?.message;
+      console.error('Signup failed:', backendMsg || err.message);
+  
+      // Custom error alert based on the actual issue
+      if (backendMsg === 'User already exists') {
+        alert('❌ A user with this email already exists. Please log in or use a different email.');
+      } else {
+        alert(`Signup failed: ${backendMsg || 'Something went wrong. Please try again.'}`);
+      }
     }
   };
+  
 
   return (
     <div className="signup-container">
