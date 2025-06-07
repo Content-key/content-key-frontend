@@ -6,11 +6,11 @@ function EmailConfirm() {
   const { token } = useParams();
   const [message, setMessage] = useState('Confirming...');
 
-  // Force local server for now until Render backend is redeployed
+  // ✅ Hardcoded fallback for deployed backend
   const API_BASE_URL =
     window.location.hostname === 'localhost'
       ? 'http://localhost:5000'
-      : process.env.REACT_APP_API_URL;
+      : 'https://content-key-backend.onrender.com'; // 🔁 Replace if you use a different domain
 
   useEffect(() => {
     const confirmEmail = async () => {
@@ -29,7 +29,7 @@ function EmailConfirm() {
     };
 
     confirmEmail();
-  }, [token, API_BASE_URL]);
+  }, [token]);
 
   return (
     <div style={{ padding: '2rem', textAlign: 'center' }}>
@@ -40,4 +40,3 @@ function EmailConfirm() {
 }
 
 export default EmailConfirm;
-
