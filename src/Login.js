@@ -31,12 +31,6 @@ function Login() {
 
       const { token, user } = res.data;
 
-      if (!user.isEmailConfirmed) {
-        setMessage('⚠️ Please confirm your email before logging in.');
-        setShowResend(true);
-        return;
-      }
-
       localStorage.setItem('token', token);
       localStorage.setItem('user', JSON.stringify(user));
 
@@ -48,9 +42,19 @@ function Login() {
         navigate('/');
       }
     } catch (err) {
-      console.error('Login error:', err.response?.data || err.message);
-      setMessage('❌ Invalid email or password');
-      setShowResend(false);
+      const errorMsg =
+        err.response?.data?.message || 'Something went wrong. Please try again.';
+
+      setMessage(`❌ ${errorMsg}`);
+
+      // If the backend said it's an unconfirmed email, trigger resend
+      if (errorMsg.includes('confirm your email')) {
+        setShowResend(true);
+      } else {
+        setShowResend(false);
+      }
+
+      console.error('Login error:', errorMsg);
     }
   };
 

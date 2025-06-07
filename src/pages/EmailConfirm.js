@@ -2,15 +2,15 @@
 import React, { useEffect, useState } from 'react';
 import { useParams } from 'react-router-dom';
 
+// ✅ Move this logic outside the component to avoid hook warnings
+const API_BASE_URL =
+  window.location.hostname === 'localhost'
+    ? 'http://localhost:5000'
+    : process.env.REACT_APP_API_URL;
+
 function EmailConfirm() {
   const { token } = useParams();
   const [message, setMessage] = useState('Confirming...');
-
-  // ✅ Hardcoded fallback for deployed backend
-  const API_BASE_URL =
-    window.location.hostname === 'localhost'
-      ? 'http://localhost:5000'
-      : 'https://content-key-backend.onrender.com'; // 🔁 Replace if you use a different domain
 
   useEffect(() => {
     const confirmEmail = async () => {
@@ -29,7 +29,7 @@ function EmailConfirm() {
     };
 
     confirmEmail();
-  }, [token]);
+  }, [token]); // ✅ No more warning
 
   return (
     <div style={{ padding: '2rem', textAlign: 'center' }}>
