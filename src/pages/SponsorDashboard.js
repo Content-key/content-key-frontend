@@ -6,6 +6,7 @@ function SponsorDashboard() {
   const [jobs, setJobs] = useState([]);
   const [loading, setLoading] = useState(true);
   const [message, setMessage] = useState('');
+  const [activeTab, setActiveTab] = useState('posted');
   const navigate = useNavigate();
 
   const [formData, setFormData] = useState({
@@ -22,15 +23,15 @@ function SponsorDashboard() {
 
   const [userName, setUserName] = useState('');
 
-useEffect(() => {
-  const storedUser = localStorage.getItem('user');
-  if (storedUser) {
-    const parsedUser = JSON.parse(storedUser);
-    setUserName(parsedUser.fullName || parsedUser.businessName || 'Sponsor');
-  }
+  useEffect(() => {
+    const storedUser = localStorage.getItem('user');
+    if (storedUser) {
+      const parsedUser = JSON.parse(storedUser);
+      setUserName(parsedUser.fullName || parsedUser.businessName || 'Sponsor');
+    }
 
-  fetchJobs(); // leave this as-is
-}, []);
+    fetchJobs();
+  }, []);
 
   const handleLogout = () => {
     localStorage.clear();
@@ -141,16 +142,72 @@ useEffect(() => {
     }
   };
 
-  useEffect(() => {
-    fetchJobs();
-  }, []);
+  const renderTab = () => {
+    if (loading) return <p>Loading jobs...</p>;
+
+    const filteredJobs = {
+      posted: jobs.filter(job => !job.isAccepted),
+      accepted: jobs.filter(job => job.isAccepted && !job.contentLinks?.length),
+      links: jobs.filter(job => job.contentLinks?.length && !job.isApproved),
+      past: jobs.filter(job => job.isApproved)
+    }[activeTab];
+
+    return (
+      <ul className="job-list">
+        {filteredJobs.map((job) => (
+          <li key={job._id} className="job-card">
+            <h3>{job.title}</h3>
+            <p>{job.description}</p>
+            <p><strong>Budget:</strong> ${job.budget}</p>
+            <p><strong>Due Date:</strong> {job.dueDate?.split('T')[0]}</p>
+            <p><strong>Type:</strong> {job.jobType}</p>
+            <p><strong>Agent:</strong> {job.agentName} ({job.agentPhone})</p>
+
+            {job.submissions && job.submissions.length > 0 ? (
+              <div className="submission-section">
+                <h4>Submitted Content:</h4>
+                {job.submissions.map((sub, index) => (
+                  <div key={index} className="submission-item">
+                    <p><strong>Creator ID:</strong> {sub.creatorId}</p>
+                    <p><strong>Status:</strong> {sub.status}</p>
+                    {sub.submittedLinks?.map((link, idx) => (
+                      <a key={idx} href={link} target="_blank" rel="noopener noreferrer">{link}</a>
+                    ))}
+                    <span className="badge-success">✅ Submitted</span>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <p className="no-submissions">No submissions yet.</p>
+            )}
+
+            <button
+              className="danger-btn"
+              style={{ marginTop: '10px' }}
+              onClick={() => handleDelete(job._id)}
+            >
+              Delete Job
+            </button>
+          </li>
+        ))}
+      </ul>
+    );
+  };
 
   return (
     <div className="dashboard-wrapper">
       <div className="form-section">
-      <h1>Sponsor Dashboard</h1>
-<h2 style={{ marginBottom: '10px' }}>👋 Welcome, {userName}!</h2>
+        <h1>Sponsor Dashboard</h1>
+        <h2 style={{ marginBottom: '10px' }}>👋 Welcome, {userName}!</h2>
 
+        <div className="tabs">
+          <button className={activeTab === 'posted' ? 'active-tab' : ''} onClick={() => setActiveTab('posted')}>Posted Jobs</button>
+          <button className={activeTab === 'accepted' ? 'active-tab' : ''} onClick={() => setActiveTab('accepted')}>Accepted Jobs</button>
+          <button className={activeTab === 'links' ? 'active-tab' : ''} onClick={() => setActiveTab('links')}>Links Submitted</button>
+          <button className={activeTab === 'past' ? 'active-tab' : ''} onClick={() => setActiveTab('past')}>Past Jobs</button>
+        </div>
+
+        {renderTab()}
 
         <form onSubmit={handleSubmit} className="job-form">
           <input name="title" value={formData.title} onChange={handleChange} placeholder="Job Title" required />
@@ -185,51 +242,6 @@ useEffect(() => {
           <button type="submit">Submit Job</button>
           {message && <p className="info-text">{message}</p>}
         </form>
-
-        <h2 className="section-title">Your Posted Jobs</h2>
-
-        {loading ? (
-          <p>Loading jobs...</p>
-        ) : (
-          <ul className="job-list">
-            {jobs.map((job) => (
-              <li key={job._id} className="job-card">
-                <h3>{job.title}</h3>
-                <p>{job.description}</p>
-                <p><strong>Budget:</strong> ${job.budget}</p>
-                <p><strong>Due Date:</strong> {job.dueDate?.split('T')[0]}</p>
-                <p><strong>Type:</strong> {job.jobType}</p>
-                <p><strong>Agent:</strong> {job.agentName} ({job.agentPhone})</p>
-
-                {job.submissions && job.submissions.length > 0 ? (
-                  <div className="submission-section">
-                    <h4>Submitted Content:</h4>
-                    {job.submissions.map((sub, index) => (
-                      <div key={index} className="submission-item">
-                        <p><strong>Creator ID:</strong> {sub.creatorId}</p>
-                        <p><strong>Status:</strong> {sub.status}</p>
-                        {sub.submittedLinks?.map((link, idx) => (
-                          <a key={idx} href={link} target="_blank" rel="noopener noreferrer">{link}</a>
-                        ))}
-                        <span className="badge-success">✅ Submitted</span>
-                      </div>
-                    ))}
-                  </div>
-                ) : (
-                  <p className="no-submissions">No submissions yet.</p>
-                )}
-
-                <button
-                  className="danger-btn"
-                  style={{ marginTop: '10px' }}
-                  onClick={() => handleDelete(job._id)}
-                >
-                  Delete Job
-                </button>
-              </li>
-            ))}
-          </ul>
-        )}
       </div>
 
       <div className="tips-section">
@@ -248,4 +260,3 @@ useEffect(() => {
 }
 
 export default SponsorDashboard;
-
