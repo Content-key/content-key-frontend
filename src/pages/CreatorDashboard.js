@@ -19,16 +19,34 @@ function CreatorDashboard() {
 
   const [userName, setUserName] = useState('');
 
-useEffect(() => {
-  const storedUser = localStorage.getItem('user');
-  if (storedUser) {
-    const parsedUser = JSON.parse(storedUser);
-    setUserName(parsedUser.stageName || parsedUser.fullName || 'Creator');
-  }
+  useEffect(() => {
+    const storedUser = localStorage.getItem('user');
+    if (storedUser) {
+      const parsedUser = JSON.parse(storedUser);
+      setUserName(parsedUser.stageName || parsedUser.fullName || 'Creator');
+    }
 
-  handleTabClick(view); // leave this
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-}, []);
+    handleTabClick(view); // leave this
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // ---- NEW: helper so creators always see NET payout (after 15% fee) ----
+  const getPayoutString = (job) => {
+    // Prefer backend-computed & stored value
+    const stored = job?.creatorPayoutPerCreator;
+    if (stored != null && !Number.isNaN(Number(stored))) {
+      return Number(stored).toFixed(2);
+    }
+    // Fallback for legacy jobs (safe rounding, never overpay)
+    const FEE = 0.15;
+    const budgetNum = Number(job?.budget || 0);
+    const split = Number(job?.splitCount || 1) || 1;
+    const cents = Math.round(budgetNum * 100);
+    const netCents = Math.round(cents * (1 - FEE));
+    const perCreatorCents = Math.floor(netCents / split);
+    return (perCreatorCents / 100).toFixed(2);
+  };
+  // ----------------------------------------------------------------------
 
   const fetchAcceptedJobs = async () => {
     const token = localStorage.getItem('token');
@@ -180,6 +198,8 @@ useEffect(() => {
                 <li key={job._id} className="job-card">
                   <h3>{job.title}</h3>
                   <p>{job.description}</p>
+                  {/* NEW: show net payout */}
+                  <p><strong>Payout:</strong> ${getPayoutString(job)}</p>
                   <ul>
                     {job.submittedLinks?.map((link, index) => (
                       <li key={index}><a href={link} target="_blank" rel="noopener noreferrer">{link}</a></li>
@@ -200,7 +220,8 @@ useEffect(() => {
                 <li key={job._id} className="job-card">
                   <h3>{job.title}</h3>
                   <p>{job.description}</p>
-                  <p><strong>Budget:</strong> ${job.budget}</p>
+                  {/* CHANGED: show net payout instead of raw budget */}
+                  <p><strong>Payout:</strong> ${getPayoutString(job)}</p>
                   <span className="badge-complete">✅ Approved & Paid</span>
                 </li>
               ))}
@@ -214,7 +235,8 @@ useEffect(() => {
               <li key={job._id} className="job-card">
                 <h3>{job.title}</h3>
                 <p>{job.description}</p>
-                <p><strong>Budget:</strong> ${job.budget}</p>
+                {/* CHANGED: creators see what they will actually get */}
+                <p><strong>Payout:</strong> ${getPayoutString(job)}</p>
                 <p><strong>Agent Name:</strong> {job.agentName}</p>
                 <p><strong>Agent Contact:</strong> {job.agentPhone}</p>
                 <p><strong>Location:</strong> {job.city}, {job.state}</p>
@@ -315,4 +337,3 @@ function MultiLinkSubmit({ jobId, onSubmitSuccess }) {
 }
 
 export default CreatorDashboard;
-
