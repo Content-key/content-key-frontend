@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import './Login.css';
+import { useAuth } from './auth/AuthProvider'; // ⬅️ fixed path
 
 function Login() {
   const [email, setEmail] = useState('');
@@ -10,6 +11,7 @@ function Login() {
   const [message, setMessage] = useState('');
   const [showResend, setShowResend] = useState(false);
   const navigate = useNavigate();
+  const { login } = useAuth(); // ⬅️ get login from context
 
   const togglePasswordVisibility = () => {
     setShowPassword((prev) => !prev);
@@ -31,8 +33,8 @@ function Login() {
 
       const { token, user } = res.data;
 
-      localStorage.setItem('token', token);
-      localStorage.setItem('user', JSON.stringify(user));
+      // ⬇️ use centralized auth (persists + cross-tab + expiry handling)
+      login(token, user);
 
       if (user.role === 'creator') {
         navigate('/dashboard/creator');

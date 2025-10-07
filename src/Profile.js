@@ -8,11 +8,30 @@ function Profile() {
     navigate('/login');                // Redirect to login
   };
 
+  const goToSettings = () => {
+    navigate('/settings');             // Redirect to settings page
+  };
+
   return (
-    <div>
+    <div style={{ padding: "2rem", textAlign: "center" }}>
       <h2>Welcome to your Profile!</h2>
       <p>This page is protected and only visible to logged-in users.</p>
-      <button onClick={handleLogout}>Logout</button>
+
+      <div style={{ marginTop: "1.5rem" }}>
+        <button 
+          onClick={goToSettings} 
+          style={{ marginRight: "1rem", padding: "0.5rem 1rem" }}
+        >
+          Settings
+        </button>
+
+        <button 
+          onClick={handleLogout} 
+          style={{ padding: "0.5rem 1rem", backgroundColor: "red", color: "white", border: "none" }}
+        >
+          Logout
+        </button>
+      </div>
     </div>
   );
 }

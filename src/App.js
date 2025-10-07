@@ -1,3 +1,4 @@
+// src/App.js
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 import Signup from './Signup';
 import Login from './Login';
@@ -6,12 +7,14 @@ import ResetPassword from './ResetPassword';
 import Profile from './Profile';
 import PrivateRoute from './PrivateRoute';
 import Landing from './Landing';
-import ProtectedRoute from './ProtectedRoute';
+import ProtectedRoute from './auth/ProtectedRoute';
 import CreatorDashboard from './pages/CreatorDashboard';
 import SponsorDashboard from './pages/SponsorDashboard';
 import DashboardIntro from './DashboardIntro';
-import EmailConfirm from './pages/EmailConfirm'; // ✅ Email confirmation page
-import ResendEmail from './pages/ResendEmail'; // ✅ (Create this page for resending confirmation email)
+import EmailConfirm from './pages/EmailConfirm';
+import ResendEmail from './pages/ResendEmail';
+import Settings from './pages/Settings';
+import SponsorRequests from './pages/sponsorrequests'; // <-- lowercase path
 
 function App() {
   return (
@@ -23,8 +26,18 @@ function App() {
         <Route path="/forgot-password" element={<ForgotPassword />} />
         <Route path="/reset-password/:token" element={<ResetPassword />} />
         <Route path="/confirm-email/:token" element={<EmailConfirm />} />
-        <Route path="/resend-confirmation" element={<ResendEmail />} /> {/* ✅ New route */}
+        <Route path="/resend-confirmation" element={<ResendEmail />} />
         <Route path="/intro" element={<DashboardIntro />} />
+
+        {/* Protected (any logged-in user) */}
+        <Route
+          path="/settings"
+          element={
+            <ProtectedRoute>
+              <Settings />
+            </ProtectedRoute>
+          }
+        />
 
         <Route
           path="/profile"
@@ -34,10 +47,12 @@ function App() {
             </PrivateRoute>
           }
         />
+
+        {/* Role-gated dashboards */}
         <Route
           path="/dashboard/creator"
           element={
-            <ProtectedRoute>
+            <ProtectedRoute roles={['creator']}>
               <CreatorDashboard />
             </ProtectedRoute>
           }
@@ -45,8 +60,18 @@ function App() {
         <Route
           path="/dashboard/sponsor"
           element={
-            <ProtectedRoute>
+            <ProtectedRoute roles={['sponsor']}>
               <SponsorDashboard />
+            </ProtectedRoute>
+          }
+        />
+
+        {/* Sponsor Inbox (Requests) */}
+        <Route
+          path="/sponsor/requests"
+          element={
+            <ProtectedRoute roles={['sponsor']}>
+              <SponsorRequests />
             </ProtectedRoute>
           }
         />

@@ -6,12 +6,14 @@
   gap: 20px;
 }
 
+/* Stronger contrast & shadow for the main card */
 .form-section {
   width: 60%;
-  background: #f9f9f9;
+  background: #ffffff;               /* was #f9f9f9 */
   padding: 30px;
   border-radius: 12px;
-  box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+  border: 2px solid #e6e6e6;         /* thicker border */
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.12); /* deeper shadow */
 }
 
 .form-section h1 {
@@ -24,7 +26,8 @@
 }
 
 .form-section input,
-.form-section textarea {
+.form-section textarea,
+.form-section select {
   margin-bottom: 15px;
   padding: 12px;
   border-radius: 8px;
@@ -47,13 +50,14 @@
   color: white;
 }
 
+/* Tips card also stronger */
 .tips-section {
   width: 35%;
-  background: #fff9e6;
+  background: #fffef6;               /* slightly brighter */
   padding: 25px;
   border-radius: 12px;
-  border: 1px solid #f0d25d;
-  box-shadow: 0 0 8px rgba(0, 0, 0, 0.05);
+  border: 2px solid #f0d25d;         /* thicker border */
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.10);
   align-self: flex-start;
 }
 
@@ -124,6 +128,14 @@
   border-radius: 5px;
   font-size: 14px;
 }
+
+/* tiny helper for inline label+input (Radius) */
+.inline-label {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
 @media (max-width: 768px) {
   .dashboard-wrapper {
     flex-direction: column;
@@ -155,7 +167,8 @@
   }
 
   .form-section input,
-  .form-section textarea {
+  .form-section textarea,
+  .form-section select {
     font-size: 15px;
   }
 }
