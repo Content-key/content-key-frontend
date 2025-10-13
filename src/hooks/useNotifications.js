@@ -1,96 +1,118 @@
 // client/src/hooks/useNotifications.js
-// Poll unread notifications and trigger a callback on new "assignment" items.
-// Minimal, no side effects beyond calling your onAssignment() handler.
-// Does NOT mark notifications read (to avoid backend changes).
+// Poll unread notifications and trigger a callback on new items.
+// Pauses when tab is hidden. Uses shared axios client (auth + 401 handled).
 
 import { useEffect, useRef } from 'react';
+import { api } from '../api/axios';
 
 /**
  * useNotifications
  *
  * @param {Object} options
- * @param {() => Promise<string> | string} options.getToken  - function that returns a JWT (or a string token)
- * @param {(notif: any) => void} options.onAssignment         - called when a new assignment notification appears
- * @param {number} [options.intervalMs=15000]                 - polling interval
- * @param {string} [options.baseUrl]                          - API base; defaults to REACT_APP_API_BASE or http://localhost:5000
- * @param {string} [options.endpoint]                         - notifications endpoint path
- *
- * Endpoint defaults to `/api/notifications?unreadOnly=true`.
- * If your API doesn’t support that filter yet, you can pass `/api/notifications`
- * and we’ll client-filter by `isRead === false`.
+ * @param {() => Promise<string> | string} options.getToken   - function that returns a JWT (or a string token)
+ * @param {(notif: any) => void} options.onAssignment          - called for new "assignment" notifications
+ * @param {number} [options.intervalMs=15000]                  - polling interval (ms) when healthy
+ * @param {string} [options.endpoint='/api/notifications?unreadOnly=true'] - endpoint path (relative to api baseURL)
+ * @param {string[]} [options.types=['assignment']]            - notif types to trigger on
  */
 export default function useNotifications({
   getToken,
   onAssignment,
   intervalMs = 15000,
-  baseUrl = process.env.REACT_APP_API_BASE || 'http://localhost:5000',
   endpoint = '/api/notifications?unreadOnly=true',
+  types = ['assignment'],
 }) {
   const seenIdsRef = useRef(new Set());
   const timerRef = useRef(null);
+  const backoffRef = useRef(0); // 0 -> healthy; increases on error
 
   useEffect(() => {
     let cancelled = false;
 
-    async function resolveToken() {
+    const resolveToken = async () => {
       if (typeof getToken === 'function') {
         const maybe = getToken();
-        // support async getToken
         return maybe && typeof maybe.then === 'function' ? await maybe : maybe;
       }
       return getToken || '';
-    }
+    };
 
-    async function fetchNotifications() {
+    const shouldPollNow = () => document.visibilityState === 'visible';
+
+    const scheduleNext = (base = intervalMs) => {
+      const backoffMs = Math.min(backoffRef.current * 2000, 30000); // cap 30s
+      const delay = base + backoffMs;
+      timerRef.current = setTimeout(tick, delay);
+    };
+
+    const tick = async () => {
+      if (cancelled) return;
+
+      // Skip polling while hidden; check again soon
+      if (!shouldPollNow()) {
+        scheduleNext(Math.max(4000, intervalMs)); // light idle check
+        return;
+      }
+
       try {
         const token = await resolveToken();
-        if (!token) return;
+        if (!token) {
+          scheduleNext(); // try again later
+          return;
+        }
 
-        const url = `${baseUrl}${endpoint}`;
-        const res = await fetch(url, {
-          method: 'GET',
-          headers: {
-            'Authorization': `Bearer ${token}`,
-            'Accept': 'application/json',
-          },
+        // Use axios instance (auth header added by interceptor)
+        const res = await api.get(endpoint, {
+          // mark that this is an authed call so our axios 401 guard knows
+          headers: { 'X-CK-Notif': '1' },
         });
 
-        if (!res.ok) return;
-        const data = await res.json();
-
-        // Support either { items: [...] } or raw array
+        const data = res?.data;
         const list = Array.isArray(data) ? data : (data.items || data.notifications || []);
-
-        // If server didn’t filter unread, do a light client-side filter
         const unread = list.filter(n => n && (n.isRead === false || n.isRead === undefined));
 
         for (const n of unread) {
           const id = n._id || n.id;
           if (!id || seenIdsRef.current.has(id)) continue;
 
-          // Only react to assignment notifications
-          if (n.type === 'assignment' && typeof onAssignment === 'function') {
-            onAssignment(n);
+          // Fire only for desired types
+          if (types.includes(n.type)) {
+            if (n.type === 'assignment' && typeof onAssignment === 'function') {
+              onAssignment(n);
+            }
           }
 
-          // Mark as seen locally so we don't spam the callback
           seenIdsRef.current.add(id);
         }
-      } catch {
-        // quiet fail; avoid console spam in production UI
+
+        // success → reset backoff
+        backoffRef.current = 0;
+        scheduleNext();
+      } catch (_err) {
+        // quiet fail; increase backoff a bit
+        backoffRef.current = Math.min(backoffRef.current + 1, 15);
+        scheduleNext();
       }
-    }
+    };
 
-    // kick once immediately
-    fetchNotifications();
+    // kick once
+    tick();
 
-    // start interval
-    timerRef.current = setInterval(fetchNotifications, intervalMs);
+    const onVis = () => {
+      if (document.visibilityState === 'visible') {
+        // immediate check when returning to the tab
+        if (timerRef.current) clearTimeout(timerRef.current);
+        backoffRef.current = 0;
+        tick();
+      }
+    };
+    document.addEventListener('visibilitychange', onVis);
 
     return () => {
       cancelled = true;
-      if (timerRef.current) clearInterval(timerRef.current);
+      document.removeEventListener('visibilitychange', onVis);
+      if (timerRef.current) clearTimeout(timerRef.current);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [baseUrl, endpoint, intervalMs, onAssignment, getToken]);
+  }, [endpoint, intervalMs, onAssignment, getToken, types.join('|')]);
 }

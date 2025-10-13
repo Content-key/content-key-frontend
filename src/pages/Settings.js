@@ -5,13 +5,12 @@ import { useAuth } from "../auth/AuthProvider";
 import { useNavigate } from "react-router-dom";
 
 export default function Settings() {
-  const { login } = useAuth(); // reuse to refresh stored user after saving
+  const { user: authUser, refreshUser } = useAuth();
   const navigate = useNavigate();
 
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState("");
 
-  // Prefill from ck_auth (AuthProvider storage)
   const [form, setForm] = useState({
     fullName: "",
     stageName: "",
@@ -30,35 +29,28 @@ export default function Settings() {
     },
   });
 
+  // Prefill from AuthProvider (rehydrated user)
   useEffect(() => {
-    try {
-      const raw = localStorage.getItem("ck_auth");
-      if (!raw) return;
-      const { user } = JSON.parse(raw);
-      if (!user) return;
-
-      setForm((prev) => ({
-        ...prev,
-        fullName: user.fullName || "",
-        stageName: user.stageName || "",
-        businessName: user.businessName || "",
-        phone: user.phone || "",
-        streetAddress: user.streetAddress || "",
-        city: user.city || "",
-        state: user.state || "",
-        zipCode: user.zipCode || "",
-        platformUrls: {
-          YouTube: user.platformUrls?.YouTube || "",
-          Instagram: user.platformUrls?.Instagram || "",
-          TikTok: user.platformUrls?.TikTok || "",
-          Facebook: user.platformUrls?.Facebook || "",
-          Other: user.platformUrls?.Other || "",
-        },
-      }));
-    } catch {
-      /* ignore */
-    }
-  }, []);
+    if (!authUser) return;
+    setForm((prev) => ({
+      ...prev,
+      fullName: authUser.fullName || "",
+      stageName: authUser.stageName || "",
+      businessName: authUser.businessName || "",
+      phone: authUser.phone || "",
+      streetAddress: authUser.streetAddress || "",
+      city: authUser.city || "",
+      state: authUser.state || "",
+      zipCode: authUser.zipCode || "",
+      platformUrls: {
+        YouTube: authUser.platformUrls?.YouTube || "",
+        Instagram: authUser.platformUrls?.Instagram || "",
+        TikTok: authUser.platformUrls?.TikTok || "",
+        Facebook: authUser.platformUrls?.Facebook || "",
+        Other: authUser.platformUrls?.Other || "",
+      },
+    }));
+  }, [authUser]);
 
   const onChange = (e) => {
     const { name, value } = e.target;
@@ -91,16 +83,11 @@ export default function Settings() {
         platformUrls: { ...form.platformUrls },
       };
 
-      // ✅ call self-update route (no :id in URL)
+      // self-update (server also geocodes if address is complete)
       const { data } = await api.put(`/api/users/me`, payload);
 
-      // Refresh ck_auth with the updated user while keeping the same token
-      const raw = localStorage.getItem("ck_auth");
-      const currentToken = raw ? JSON.parse(raw).token : null;
-      const updatedUser = data.user || payload;
-      if (currentToken && updatedUser) {
-        login(currentToken, updatedUser);
-      }
+      // Pull the fresh user from the server and update AuthProvider/localStorage
+      await refreshUser();
 
       setMessage("✅ Settings saved!");
     } catch (err) {

@@ -26,25 +26,34 @@ export default function SponsorRequests() {
 
   const refreshPendingCount = async () => {
     try {
-      const { data } = await api.get('/api/requests', {
-        params: { status: 'pending', page: 1, pageSize: 1 },
-      });
-      setPendingCount(Number(data?.total || 0));
-    } catch {}
+      // Use inbox count for accuracy with new endpoint
+      const { data } = await api.get('/api/requests/inbox');
+      setPendingCount(Array.isArray(data?.requests) ? data.requests.length : 0);
+    } catch {/* noop */}
   };
 
   const fetchData = async (status = activeTab, p = page) => {
     setLoading(true);
     setError('');
     try {
-      const { data } = await api.get('/api/requests', {
-        params: { status, page: p, pageSize }
-      });
-      setItems(Array.isArray(data?.items) ? data.items : []);
-      setTotal(Number(data?.total || 0));
-      setPage(Number(data?.page || 1));
+      if (status === 'pending') {
+        // ✅ Use the new snapshot-based endpoint
+        const { data } = await api.get('/api/requests/inbox');
+        const arr = Array.isArray(data?.requests) ? data.requests : [];
+        setItems(arr);
+        setTotal(arr.length);
+        setPage(1);
+      } else {
+        // Keep existing resolved listing w/ pagination
+        const { data } = await api.get('/api/requests', {
+          params: { status, page: p, pageSize }
+        });
+        setItems(Array.isArray(data?.items) ? data.items : []);
+        setTotal(Number(data?.total || 0));
+        setPage(Number(data?.page || 1));
+      }
 
-      if (status === 'pending') setPendingCount(Number(data?.total || 0));
+      if (status === 'pending') setPendingCount((prev) => prev); // already refreshed by inbox
     } catch (e) {
       console.error('Fetch requests error:', e);
       setError(e?.response?.data?.error || 'Failed to load requests');
@@ -69,7 +78,7 @@ export default function SponsorRequests() {
 
   const approve = async (id) => {
     const prev = items;
-    setItems((list) => list.filter((r) => r._id !== id)); // optimistic remove
+    setItems((list) => list.filter((r) => (r._id || r.id) !== id)); // optimistic remove
     try {
       await api.patch(`/api/requests/${id}/approve`);
       showToast('✅ Request approved');
@@ -85,7 +94,7 @@ export default function SponsorRequests() {
   const deny = async (id) => {
     const reason = window.prompt('Optional reason:', '') || undefined;
     const prev = items;
-    setItems((list) => list.filter((r) => r._id !== id)); // optimistic remove
+    setItems((list) => list.filter((r) => (r._id || r.id) !== id)); // optimistic remove
     try {
       await api.patch(`/api/requests/${id}/deny`, reason ? { reason } : {});
       showToast('🛑 Request denied');
@@ -129,6 +138,20 @@ export default function SponsorRequests() {
     if (page * pageSize >= total) return;
     fetchData(activeTab, page + 1);
   };
+
+  // ------- helpers to render either shape (inbox snapshots or resolved list) -------
+  const getJobTitle = (r) => r.jobTitle || r.jobId?.title || 'Request';
+  const getJobIdStr = (r) => (typeof r.jobId === 'object' ? r.jobId?._id : r.jobId);
+  const getCreatorDisplay = (r) =>
+    r.stageName || r.creatorName ||
+    r.creatorId?.stageName || r.creatorId?.fullName || r.creatorId?.email ||
+    (typeof r.creatorId === 'string' ? r.creatorId : 'Unknown');
+  const getDistance = (r) => {
+    const v = r.distanceMiles ?? r.creatorToJobMiles ?? r.sponsorToJobMiles;
+    return typeof v === 'number' ? `${v.toFixed(1)} mi` : null;
+  };
+  const getLocation = (r) =>
+    r.city || r.state ? `${r.city || ''}${r.city && r.state ? ', ' : ''}${r.state || ''}` : null;
 
   const badge = (count) =>
     count > 0 ? (
@@ -203,48 +226,63 @@ export default function SponsorRequests() {
             <p>No {activeTab} requests.</p>
           ) : (
             <ul className="job-list">
-              {items.map((r) => (
-                <li key={r._id} className="job-card" style={{ padding: 16 }}>
-                  <h3>{r?.jobId?.title || 'Request'}</h3>
-                  <p><strong>Request ID:</strong> {r._id}</p>
-                  <p><strong>Job:</strong> {typeof r.jobId === 'object' ? r.jobId?._id : r.jobId}</p>
-                  <p><strong>Creator:</strong> {typeof r.creatorId === 'object'
-                    ? (r.creatorId?.stageName || r.creatorId?.fullName || r.creatorId?.email || r.creatorId?._id)
-                    : r.creatorId
-                  }</p>
-                  {r.note ? <p><strong>Note:</strong> {r.note}</p> : null}
-                  <p><strong>Created:</strong> {new Date(r.createdAt).toLocaleString()}</p>
-                  {activeTab === 'resolved' && (
-                    <>
-                      <p><strong>Status:</strong> {r.status}</p>
-                      <p><strong>Resolved:</strong> {r.resolvedAt ? new Date(r.resolvedAt).toLocaleString() : '—'}</p>
-                    </>
-                  )}
+              {items.map((r) => {
+                const id = r._id || r.id;
+                const title = getJobTitle(r);
+                const jobIdStr = getJobIdStr(r);
+                const creator = getCreatorDisplay(r);
+                const distance = getDistance(r);
+                const loc = getLocation(r);
 
-                  {activeTab === 'pending' ? (
-                    <div style={{ display: 'flex', gap: 10, marginTop: 8 }}>
-                      <button className="active-tab" style={{ background: 'green', color: '#fff' }} onClick={() => approve(r._id)}>
-                        Approve
-                      </button>
-                      <button className="danger-btn" onClick={() => deny(r._id)}>
-                        Deny
-                      </button>
-                    </div>
-                  ) : (
-                    <em>Resolved</em>
-                  )}
-                </li>
-              ))}
+                return (
+                  <li key={id} className="job-card" style={{ padding: 16 }}>
+                    <h3>{title}</h3>
+
+                    <p><strong>Request ID:</strong> {id}</p>
+                    <p><strong>Job ID:</strong> {jobIdStr}</p>
+                    <p><strong>Creator:</strong> {creator}</p>
+                    {loc && <p><strong>Location:</strong> {loc}</p>}
+                    {distance && <p><strong>Distance:</strong> {distance}</p>}
+                    {r.note ? <p><strong>Note:</strong> {r.note}</p> : null}
+                    <p><strong>Created:</strong> {new Date(r.createdAt).toLocaleString()}</p>
+
+                    {activeTab === 'pending' ? (
+                      <div style={{ display: 'flex', gap: 10, marginTop: 8 }}>
+                        <button
+                          className="active-tab"
+                          style={{ background: 'green', color: '#fff' }}
+                          onClick={() => approve(id)}
+                        >
+                          Approve
+                        </button>
+                        <button className="danger-btn" onClick={() => deny(id)}>
+                          Deny
+                        </button>
+                      </div>
+                    ) : (
+                      <>
+                        <p><strong>Status:</strong> {r.status}</p>
+                        <p><strong>Resolved:</strong> {r.resolvedAt ? new Date(r.resolvedAt).toLocaleString() : '—'}</p>
+                      </>
+                    )}
+                  </li>
+                );
+              })}
             </ul>
           )}
 
-          {/* Pagination */}
+          {/* Pagination (resolved tab only effectively) */}
           <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
-            <button onClick={prevPage} disabled={page <= 1}>Prev</button>
+            <button onClick={prevPage} disabled={page <= 1 || activeTab === 'pending'}>Prev</button>
             <span style={{ alignSelf: 'center' }}>
               Page {page} · {total} total
             </span>
-            <button onClick={nextPage} disabled={page * pageSize >= total}>Next</button>
+            <button
+              onClick={nextPage}
+              disabled={activeTab === 'pending' || page * pageSize >= total}
+            >
+              Next
+            </button>
           </div>
         </div>
 

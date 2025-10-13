@@ -1,18 +1,20 @@
-// index.js
-
+// src/index.js
 import React from 'react';
-import ReactDOM from 'react-dom/client';
+import { createRoot } from 'react-dom/client';
+import { BrowserRouter } from 'react-router-dom';
 import App from './App';
 import { AuthProvider } from './auth/AuthProvider';
 
-// Create root
-const root = ReactDOM.createRoot(document.getElementById('root'));
+// Removed StrictMode to avoid double-mount in dev.
+// AuthProvider wraps Router so guarded routes wait for auth rehydrate.
 
-// Render the app wrapped with AuthProvider
+const container = document.getElementById('root');
+const root = createRoot(container);
+
 root.render(
-  <React.StrictMode>
-    <AuthProvider>
+  <AuthProvider>
+    <BrowserRouter>
       <App />
-    </AuthProvider>
-  </React.StrictMode>
+    </BrowserRouter>
+  </AuthProvider>
 );

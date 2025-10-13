@@ -1,32 +1,74 @@
 // src/auth/AuthProvider.js
-import React, { createContext, useContext, useEffect, useMemo, useState } from "react";
+import React, {
+  createContext,
+  useContext,
+  useEffect,
+  useMemo,
+  useState,
+  useCallback,
+} from "react";
 import { isTokenExpired } from "../lib/auth";
+import { api } from "../api/axios";
 
-const STORAGE_KEY = "ck_auth"; // { token, user }
+const STORAGE_KEY = "ck_auth";
 const AuthContext = createContext(null);
+
+// Server rehydrate
+async function fetchMe() {
+  const res = await api.get("/api/users/me");
+  return res.data?.user || null;
+}
 
 export const AuthProvider = ({ children }) => {
   const [token, setToken] = useState(null);
   const [user, setUser] = useState(null);
+  const [authReady, setAuthReady] = useState(false); // ✅ important
 
-  // load from localStorage on first render
+  // Load from localStorage on first render
   useEffect(() => {
     try {
       const raw = localStorage.getItem(STORAGE_KEY);
-      if (!raw) return;
-      const { token: savedToken, user: savedUser } = JSON.parse(raw);
-      if (savedToken && !isTokenExpired(savedToken)) {
-        setToken(savedToken);
-        setUser(savedUser ?? null);
-      } else {
-        localStorage.removeItem(STORAGE_KEY);
+      if (raw) {
+        const { token: savedToken, user: savedUser } = JSON.parse(raw);
+        if (savedToken && !isTokenExpired(savedToken)) {
+          setToken(savedToken);
+          setUser(savedUser ?? null);
+        } else {
+          localStorage.removeItem(STORAGE_KEY);
+        }
       }
     } catch {
       localStorage.removeItem(STORAGE_KEY);
+    } finally {
+      setAuthReady(true); // ✅ allow routes to render after storage read
     }
   }, []);
 
-  // auto-logout when token expires (checked every 30s)
+  // Rehydrate user from server whenever token changes
+  useEffect(() => {
+    let cancelled = false;
+    async function rehydrate() {
+      if (!token) return;
+      if (isTokenExpired(token)) {
+        logout();
+        return;
+      }
+      try {
+        const freshUser = await fetchMe();
+        if (!cancelled && freshUser) {
+          setUser(freshUser);
+          localStorage.setItem(STORAGE_KEY, JSON.stringify({ token, user: freshUser }));
+        }
+      } catch (err) {
+        // Don’t force logout on transient errors; 401s handled by axios interceptor
+        console.warn("Rehydrate warning:", err?.message || err);
+      }
+    }
+    rehydrate();
+    return () => { cancelled = true; };
+  }, [token]);
+
+  // Auto-logout when token expires (checked every 30s)
   useEffect(() => {
     if (!token) return;
     const id = setInterval(() => {
@@ -35,7 +77,7 @@ export const AuthProvider = ({ children }) => {
     return () => clearInterval(id);
   }, [token]);
 
-  // cross-tab sync (login/logout reflected across tabs)
+  // Cross-tab sync
   useEffect(() => {
     const onStorage = (e) => {
       if (e.key !== STORAGE_KEY) return;
@@ -68,6 +110,22 @@ export const AuthProvider = ({ children }) => {
     localStorage.setItem(STORAGE_KEY, JSON.stringify({ token: jwt, user: u }));
   };
 
+  const refreshUser = useCallback(async () => {
+    if (!token || isTokenExpired(token)) {
+      logout();
+      return null;
+    }
+    try {
+      const freshUser = await fetchMe();
+      setUser(freshUser);
+      localStorage.setItem(STORAGE_KEY, JSON.stringify({ token, user: freshUser }));
+      return freshUser;
+    } catch (err) {
+      console.warn("refreshUser warning:", err?.message || err);
+      return null;
+    }
+  }, [token]);
+
   const logout = () => {
     setToken(null);
     setUser(null);
@@ -75,8 +133,16 @@ export const AuthProvider = ({ children }) => {
   };
 
   const value = useMemo(
-    () => ({ token, user, isAuthed: Boolean(token && user), login, logout }),
-    [token, user]
+    () => ({
+      token,
+      user,
+      authReady,                 // ✅ expose to guards
+      isAuthed: Boolean(token),  // ✅ token alone is enough for routing
+      login,
+      logout,
+      refreshUser,
+    }),
+    [token, user, authReady, refreshUser]
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

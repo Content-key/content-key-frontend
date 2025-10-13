@@ -1,42 +1,89 @@
 // src/pages/EmailConfirm.js
 import React, { useEffect, useState } from 'react';
-import { useParams } from 'react-router-dom';
+import { useParams, useNavigate, Link } from 'react-router-dom';
+import { api } from '../api/axios';
 
-// ✅ Move this logic outside the component to avoid hook warnings
-const API_BASE_URL =
-  window.location.hostname === 'localhost'
-    ? 'http://localhost:5000'
-    : process.env.REACT_APP_API_URL;
-
-function EmailConfirm() {
+export default function EmailConfirm() {
   const { token } = useParams();
-  const [message, setMessage] = useState('Confirming...');
+  const navigate = useNavigate();
+  const [status, setStatus] = useState('pending'); // 'pending' | 'ok' | 'error'
+  const [message, setMessage] = useState('Confirming your email…');
 
   useEffect(() => {
-    const confirmEmail = async () => {
+    let cancelled = false;
+
+    async function run() {
       try {
-        const res = await fetch(`${API_BASE_URL}/api/confirm-email/${token}`);
-        const data = await res.json();
+        const res = await api.get(`/api/confirm-email/${encodeURIComponent(token)}`);
+        if (cancelled) return;
 
-        if (res.ok) {
-          setMessage('✅ Email confirmed successfully!');
-        } else {
-          setMessage(`❌ ${data.message || 'Failed to confirm email.'}`);
-        }
+        // Backend returns 200 + { message }
+        setStatus('ok');
+        setMessage(res?.data?.message || '✅ Email confirmed successfully!');
       } catch (err) {
-        setMessage('❌ Server error.');
+        if (cancelled) return;
+        const msg =
+          err?.response?.data?.message ||
+          err?.response?.data?.error ||
+          'Invalid or expired confirmation link.';
+        setStatus('error');
+        setMessage(`❌ ${msg}`);
       }
-    };
+    }
 
-    confirmEmail();
-  }, [token]); // ✅ No more warning
+    if (token) run();
+    return () => { cancelled = true; };
+  }, [token]);
 
   return (
-    <div style={{ padding: '2rem', textAlign: 'center' }}>
+    <div style={{ padding: '2rem', maxWidth: 560, margin: '0 auto', textAlign: 'center' }}>
       <h1>📧 Email Confirmation</h1>
-      <p>{message}</p>
+      <p style={{ marginTop: 8 }}>{message}</p>
+
+      {status === 'ok' && (
+        <div style={{ marginTop: 16, display: 'flex', gap: 8, justifyContent: 'center' }}>
+          <button
+            onClick={() => navigate('/login')}
+            style={{ padding: '8px 12px', borderRadius: 8, border: 'none', cursor: 'pointer' }}
+          >
+            Go to Login
+          </button>
+          <button
+            onClick={() => navigate('/')}
+            style={{ padding: '8px 12px', borderRadius: 8, border: 'none', cursor: 'pointer', background: 'black', color: 'white' }}
+          >
+            Home
+          </button>
+        </div>
+      )}
+
+      {status === 'error' && (
+        <>
+          <p style={{ color: '#666', marginTop: 10 }}>
+            If your link expired, you can request a new confirmation email.
+          </p>
+          <div style={{ marginTop: 12, display: 'flex', gap: 8, justifyContent: 'center', flexWrap: 'wrap' }}>
+            <Link
+              to="/resend-confirmation"
+              style={{ padding: '8px 12px', borderRadius: 8, background: '#1d4ed8', color: 'white', textDecoration: 'none' }}
+            >
+              Request New Email
+            </Link>
+            <button
+              onClick={() => navigate('/')}
+              style={{ padding: '8px 12px', borderRadius: 8, border: 'none', cursor: 'pointer' }}
+            >
+              Home
+            </button>
+            <button
+              onClick={() => navigate('/login')}
+              style={{ padding: '8px 12px', borderRadius: 8, border: 'none', cursor: 'pointer' }}
+            >
+              Go to Login
+            </button>
+          </div>
+        </>
+      )}
     </div>
   );
 }
-
-export default EmailConfirm;

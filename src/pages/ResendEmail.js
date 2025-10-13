@@ -1,24 +1,38 @@
+// src/pages/ResendEmail.js
 import React, { useState } from 'react';
-import axios from 'axios';
-import '../Login.css'; // ✅ Corrected path to access Login.css from parent folder
+import { Link, useNavigate } from 'react-router-dom';
+import '../Login.css'; // keep using the shared styles
+import { api } from '../api/axios';
 
-function ResendEmail() {
+export default function ResendEmail() {
   const [email, setEmail] = useState('');
   const [message, setMessage] = useState('');
-
-  const API_BASE_URL =
-    window.location.hostname === 'localhost'
-      ? 'http://localhost:5000'
-      : process.env.REACT_APP_API_URL;
+  const [sending, setSending] = useState(false);
+  const navigate = useNavigate();
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    setMessage('');
+
+    // lightweight email format check
+    const looksEmail = /\S+@\S+\.\S+/.test(email);
+    if (!looksEmail) {
+      setMessage('❌ Please enter a valid email address.');
+      return;
+    }
+
+    setSending(true);
     try {
-      const res = await axios.post(`${API_BASE_URL}/api/resend-confirmation`, { email });
-      setMessage('✅ ' + res.data.message);
+      const res = await api.post('/api/resend-confirmation', { email });
+      setMessage('✅ ' + (res?.data?.message || 'Confirmation email sent.'));
     } catch (err) {
-      const msg = err.response?.data?.message || 'Server error';
+      const msg =
+        err?.response?.data?.message ||
+        err?.response?.data?.error ||
+        'Server error';
       setMessage('❌ ' + msg);
+    } finally {
+      setSending(false);
     }
   };
 
@@ -26,6 +40,7 @@ function ResendEmail() {
     <div className="login-container">
       <div className="login-box">
         <h2>Resend Confirmation Email</h2>
+
         <form onSubmit={handleSubmit}>
           <input
             type="email"
@@ -33,13 +48,30 @@ function ResendEmail() {
             value={email}
             onChange={(e) => setEmail(e.target.value)}
             required
+            disabled={sending}
           />
-          <button type="submit">Resend</button>
+          <button type="submit" disabled={sending}>
+            {sending ? 'Sending…' : 'Resend'}
+          </button>
         </form>
-        {message && <p className="message">{message}</p>}
+
+        {message && <p className="message" style={{ marginTop: 10 }}>{message}</p>}
+
+        <div style={{ marginTop: 16, display: 'flex', gap: 8, justifyContent: 'center', flexWrap: 'wrap' }}>
+          <button
+            onClick={() => navigate('/')}
+            style={{ padding: '8px 12px', borderRadius: 8, border: 'none', cursor: 'pointer' }}
+          >
+            Home
+          </button>
+          <Link
+            to="/login"
+            style={{ padding: '8px 12px', borderRadius: 8, background: '#1d4ed8', color: 'white', textDecoration: 'none' }}
+          >
+            Go to Login
+          </Link>
+        </div>
       </div>
     </div>
   );
 }
-
-export default ResendEmail;
