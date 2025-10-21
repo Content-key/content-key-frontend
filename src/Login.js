@@ -1,3 +1,4 @@
+// src/Login.js
 import React, { useEffect, useState, useRef } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import './Login.css';
@@ -23,7 +24,6 @@ function Login() {
     const params = new URLSearchParams(search);
     if (params.get('verified') === '1') {
       setShowVerified(true);
-      // Optional: move focus to password for quick login
       setTimeout(() => passwordRef.current?.focus(), 0);
     }
     const emailFromQuery = params.get('email');
@@ -43,6 +43,7 @@ function Login() {
 
       login(token, user);
 
+      // Role-based redirect (original behavior)
       if (user.role === 'creator') navigate('/dashboard/creator');
       else if (user.role === 'sponsor') navigate('/dashboard/sponsor');
       else navigate('/');
@@ -69,7 +70,7 @@ function Login() {
           <div
             style={{
               background: '#e8f7ee',
-              border: '1px solid #b6ebc1',
+              border: '1px solid #b6ebc1', // ✅ fixed
               color: '#0a7a2f',
               padding: '10px 12px',
               borderRadius: 8,
@@ -90,6 +91,7 @@ function Login() {
             onChange={(e) => setEmail(e.target.value)}
             required
           />
+
           <input
             ref={passwordRef}
             type={showPassword ? 'text' : 'password'}
@@ -98,6 +100,7 @@ function Login() {
             onChange={(e) => setPassword(e.target.value)}
             required
           />
+
           <label style={{ marginTop: '10px', display: 'block', fontSize: '14px' }}>
             <input
               type="checkbox"
@@ -107,7 +110,8 @@ function Login() {
             />
             Show Password
           </label>
-          <button type="submit">Login</button>
+
+          <button type="submit" style={{ marginTop: 12 }}>Login</button>
 
           {message && <p className="message">{message}</p>}
 
@@ -118,6 +122,25 @@ function Login() {
             </p>
           )}
         </form>
+
+        {/* Sign Up button */}
+        <p className="footer-note" style={{ marginTop: 10 }}>
+          New here?{' '}
+          <button
+            type="button"
+            onClick={() => navigate('/signup')}
+            style={{
+              background: 'black',
+              color: 'white',
+              border: 'none',
+              padding: '8px 14px',
+              borderRadius: 8,
+              cursor: 'pointer'
+            }}
+          >
+            Sign Up
+          </button>
+        </p>
 
         <p className="footer-note">
           Forgot your password? <a href="/forgot-password">Reset it</a>
