@@ -6,7 +6,13 @@ import './Login.css';
 import { api } from './api/axios';
 import { useAuth } from './auth/AuthProvider';
 
+// 🔹 NEW: redirect-away if already authenticated
+import useRedirectIfAuthed from './hooks/useRedirectIfAuthed';
+
 function Login() {
+  // Redirect signed-in users off this page (respects ?redirect= and state.from)
+  useRedirectIfAuthed();
+
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -70,7 +76,7 @@ function Login() {
           <div
             style={{
               background: '#e8f7ee',
-              border: '1px solid #b6ebc1', // ✅ fixed
+              border: '1px solid #b6ebc1',
               color: '#0a7a2f',
               padding: '10px 12px',
               borderRadius: 8,

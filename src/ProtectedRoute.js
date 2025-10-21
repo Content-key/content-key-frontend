@@ -13,12 +13,13 @@ export default function ProtectedRoute({ children, roles }) {
   const { user, token, loading } = useAuth();
   const location = useLocation();
 
-  // Critical: don't decide until auth rehydration completes
+  // Wait for auth rehydration to complete
   if (loading) return null; // or a tiny spinner
 
-  // Not authenticated → go to login (preserve where we came from)
+  // Not authenticated → go to login, preserving where they were headed
   if (!token || !user) {
-    return <Navigate to="/login" replace state={{ from: location }} />;
+    const from = `${location.pathname}${location.search || ''}`;
+    return <Navigate to="/login" replace state={{ from }} />;
   }
 
   // Optional role gating

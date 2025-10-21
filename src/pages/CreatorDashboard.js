@@ -1,5 +1,6 @@
+// src/pages/CreatorDashboard.jsx
 import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 import './SponsorDashboard.css';
 
 import { api } from '../api/axios';
@@ -21,6 +22,9 @@ function CreatorDashboard() {
   // allow blank; blank means “0” (show no local jobs)
   const [radiusMiles, setRadiusMiles] = useState('25');
 
+  // 🔹 Request Inbox badge count
+  const [reqCount, setReqCount] = useState(0);
+
   const navigate = useNavigate();
   const { user: authUser, logout } = useAuth();
 
@@ -37,6 +41,7 @@ function CreatorDashboard() {
   // Initial load
   useEffect(() => {
     handleTabClick('upForGrabs');
+    fetchCreatorRequestCount();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -65,13 +70,13 @@ function CreatorDashboard() {
     setLoading(true);
     setErr('');
     try {
-      // 🔒 normalize radius: blank/invalid -> 0; cap to 5000 like backend
+      // normalize radius: blank/invalid -> 0; cap to 5000 like backend
       const n = Number.parseFloat(radiusMiles);
       let radiusParam = Number.isFinite(n) && n >= 0 ? n : 0;
       if (radiusParam > 5000) radiusParam = 5000;
 
       const { data } = await api.get('/api/jobs/visible', {
-        params: { radiusMiles: radiusParam }, // ✅ matches backend
+        params: { radiusMiles: radiusParam },
       });
 
       const list = Array.isArray(data?.jobs) ? data.jobs : [];
@@ -83,8 +88,7 @@ function CreatorDashboard() {
       setLocalJobs(list.filter((j) => j?.isUpForGrabs !== true));
       setOutsideRadiusJobs(outside);
     } catch (e) {
-      const msg =
-        e?.response?.data?.error || e?.message || 'Failed to load jobs';
+      const msg = e?.response?.data?.error || e?.message || 'Failed to load jobs';
       setErr(msg);
       setUpForGrabsJobs([]);
       setLocalJobs([]);
@@ -166,6 +170,33 @@ function CreatorDashboard() {
     }
   };
 
+  // 🔹 fetch creator's request count (client-filtered as a fallback)
+  const fetchCreatorRequestCount = async () => {
+    try {
+      const res = await api.get('/api/job-requests').catch(() => ({ data: [] }));
+      const arr = Array.isArray(res.data?.requests)
+        ? res.data.requests
+        : Array.isArray(res.data)
+        ? res.data
+        : [];
+
+      const myId = authUser?._id;
+      const mine = arr.filter(
+        (r) =>
+          r?.requesterId === myId ||
+          r?.creatorId === myId ||
+          r?.actor === 'creator'
+      );
+
+      const active = mine.filter((r) =>
+        ['pending', 'approved'].includes(String(r?.status || 'pending').toLowerCase())
+      );
+      setReqCount(active.length);
+    } catch {
+      setReqCount(0);
+    }
+  };
+
   const handleRequestAccess = async (jobId) => {
     try {
       const note = window.prompt(
@@ -174,6 +205,8 @@ function CreatorDashboard() {
       );
       await api.post('/api/job-requests', { jobId, note: note || '' });
       alert('✅ Request sent to sponsor!');
+      setReqCount((n) => (Number.isFinite(n) ? n + 1 : 1));
+      fetchCreatorRequestCount();
     } catch (err) {
       const code = err?.response?.status;
       const msg =
@@ -220,18 +253,69 @@ function CreatorDashboard() {
 
   // If Local tab has a geo error, show banner but DO NOT block dashboard
   const showLocalGeoBanner =
-    view === 'localJobs' &&
-    err === 'Your profile is missing latitude/longitude';
+    view === 'localJobs' && err === 'Your profile is missing latitude/longitude';
 
   const showFilterBar = view === 'localJobs' || view === 'upForGrabs';
 
   return (
     <div className="dashboard-wrapper">
       <div className="form-section">
-        <h1>Creator Dashboard</h1>
-        <h2 style={{ marginBottom: '10px' }}>👋 Welcome, {userName}!</h2>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
+          <div>
+            <h1>Creator Dashboard</h1>
+            <h2 style={{ marginBottom: '10px' }}>👋 Welcome, {userName}!</h2>
+          </div>
 
-        <div className="tabs">
+          {/* 📫 Requests Inbox button (purple w/ badge) */}
+          <Link
+            to="/creator/requests"
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: 8,
+              padding: '10px 14px',
+              borderRadius: 12,
+              textDecoration: 'none',
+              fontWeight: 800,
+              background: '#7c3aed',        // violet-600
+              border: '1px solid #7c3aed',
+              color: '#ffffff',
+              boxShadow: '0 8px 20px rgba(124, 58, 237, 0.25)'
+            }}
+            onMouseEnter={fetchCreatorRequestCount}
+            onMouseOver={(e) => {
+              e.currentTarget.style.background = '#6d28d9'; // violet-700
+              e.currentTarget.style.borderColor = '#6d28d9';
+            }}
+            onMouseOut={(e) => {
+              e.currentTarget.style.background = '#7c3aed';
+              e.currentTarget.style.borderColor = '#7c3aed';
+            }}
+            aria-label={`Open Requests Inbox${reqCount ? ` (${reqCount})` : ''}`}
+          >
+            <span>📫 Requests Inbox</span>
+            {reqCount > 0 && (
+              <span
+                style={{
+                  marginLeft: 6,
+                  minWidth: 22,
+                  height: 22,
+                  padding: '0 6px',
+                  borderRadius: 999,
+                  fontSize: 12,
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  background: 'rgba(255,255,255,0.18)'
+                }}
+              >
+                {reqCount}
+              </span>
+            )}
+          </Link>
+        </div>
+
+        <div className="tabs" style={{ marginTop: 12 }}>
           <button
             className={view === 'upForGrabs' ? 'active-tab' : ''}
             onClick={() => handleTabClick('upForGrabs')}
@@ -317,9 +401,7 @@ function CreatorDashboard() {
                       </li>
                     ))}
                   </ul>
-                  <span className="badge-warning">
-                    ⏳ Pending Sponsor Approval
-                  </span>
+                  <span className="badge-warning">⏳ Pending Sponsor Approval</span>
                 </li>
               ))}
             </ul>
@@ -358,19 +440,15 @@ function CreatorDashboard() {
                     <strong>Payout:</strong> ${getPayoutString(job)}
                   </p>
                   <p>
-                    <strong>Agent Name:</strong> {job.agentName}
-                  </p>
+                    <strong>Agent Name:</strong> {job.agentName}</p>
                   <p>
-                    <strong>Agent Contact:</strong> {job.agentPhone}
-                  </p>
+                    <strong>Agent Contact:</strong> {job.agentPhone}</p>
                   <p>
                     <strong>Location:</strong>{' '}
                     {[job.city, job.state].filter(Boolean).join(', ') || '—'}
                   </p>
                   {job.radiusMiles != null && (
-                    <p>
-                      <strong>Radius:</strong> {job.radiusMiles} miles
-                    </p>
+                    <p><strong>Radius:</strong> {job.radiusMiles} miles</p>
                   )}
                   {['upForGrabs', 'localJobs'].includes(view) && (
                     <button onClick={() => handleAccept(job._id)}>
@@ -379,9 +457,7 @@ function CreatorDashboard() {
                   )}
                   {view === 'myJobs' && (
                     <>
-                      <p>
-                        <em>No content links submitted yet</em>
-                      </p>
+                      <p><em>No content links submitted yet</em></p>
                       <MultiLinkSubmit
                         jobId={job.acceptedJobId}
                         onSubmitSuccess={fetchMyJobs}
@@ -407,23 +483,14 @@ function CreatorDashboard() {
                     <li key={job._id} className="job-card">
                       <h3>{job.title}</h3>
                       <p>{job.description}</p>
-                      <p>
-                        <strong>Payout:</strong> ${getPayoutString(job)}
-                      </p>
+                      <p><strong>Payout:</strong> ${getPayoutString(job)}</p>
                       {typeof job.distanceMiles === 'number' && (
-                        <p>
-                          <strong>Distance:</strong>{' '}
-                          {job.distanceMiles.toFixed(1)} miles away
-                        </p>
+                        <p><strong>Distance:</strong> {job.distanceMiles.toFixed(1)} miles away</p>
                       )}
                       {job.radiusMiles != null && (
-                        <p>
-                          <strong>Sponsor Radius:</strong> {job.radiusMiles} miles
-                        </p>
+                        <p><strong>Sponsor Radius:</strong> {job.radiusMiles} miles</p>
                       )}
-                      <p>
-                        <em>Outside radius — request access</em>
-                      </p>
+                      <p><em>Outside radius — request access</em></p>
                       <button onClick={() => handleRequestAccess(job._id)}>
                         Request Access
                       </button>
@@ -442,10 +509,7 @@ function CreatorDashboard() {
           <li>🏷️ Get a business address — build trust with sponsors</li>
           <li>📛 Earn your Certification Badge to access big-money sponsors</li>
           <li>🎥 Turn your content into income — this is the future of business</li>
-          <li>
-            💼 Learn how to treat your videos like a business —{' '}
-            <strong>take our class today</strong>
-          </li>
+          <li>💼 Learn how to treat your videos like a business — <strong>take our class today</strong></li>
         </ul>
         <button
           className="home-btn"

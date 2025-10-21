@@ -17,6 +17,7 @@ import EmailConfirm from './pages/EmailConfirm';
 import ResendEmail from './pages/ResendEmail';
 import Settings from './pages/Settings';
 import SponsorRequests from './pages/sponsorrequests';
+import CreatorRequests from './pages/CreatorRequests.js'; // MUST match the file below
 
 // useAuth must be called unconditionally
 import { useAuth } from './auth/AuthProvider';
@@ -37,8 +38,14 @@ function App() {
   return (
     <Routes>
       {/* Smart Home */}
-      <Route path="/" element={user ? <Navigate to={dashFor(user)} replace /> : <Landing />} />
-      <Route path="/home" element={user ? <Navigate to={dashFor(user)} replace /> : <Landing />} />
+      <Route
+        path="/"
+        element={user ? <Navigate to={dashFor(user)} replace /> : <Landing />}
+      />
+      <Route
+        path="/home"
+        element={user ? <Navigate to={dashFor(user)} replace /> : <Landing />}
+      />
 
       {/* Public */}
       <Route path="/signup" element={<Signup />} />
@@ -95,10 +102,26 @@ function App() {
         }
       />
 
+      {/* Creator Inbox */}
+      <Route
+        path="/creator/requests"
+        element={
+          <ProtectedRoute roles={['creator']}>
+            <CreatorRequests />
+          </ProtectedRoute>
+        }
+      />
+
       {/* Fallback */}
       <Route
         path="*"
-        element={user ? <Navigate to={dashFor(user)} replace /> : <Navigate to="/login" replace />}
+        element={
+          user ? (
+            <Navigate to={dashFor(user)} replace />
+          ) : (
+            <Navigate to="/login" replace />
+          )
+        }
       />
     </Routes>
   );
