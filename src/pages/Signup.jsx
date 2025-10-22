@@ -4,7 +4,7 @@ import axios from 'axios';
 import { useNavigate, Link } from 'react-router-dom';
 
 // ✅ paths fixed after moving into src/pages/
-import '.../Signup.css';
+import '../Signup.css';
 import useRedirectIfAuthed from '.../hooks/useRedirectIfAuthed';
 
 function Signup() {
