@@ -5,7 +5,7 @@ import { useNavigate, Link } from 'react-router-dom';
 
 // ✅ paths fixed after moving into src/pages/
 import '../Signup.css';
-import useRedirectIfAuthed from '.../hooks/useRedirectIfAuthed';
+import useRedirectIfAuthed from '../hooks/useRedirectIfAuthed';
 
 function Signup() {
   const navigate = useNavigate();
