@@ -6,7 +6,7 @@ import './Login.css';
 import { api } from './api/axios';
 import { useAuth } from './auth/AuthProvider';
 
-// 🔹 NEW: redirect-away if already authenticated
+// 🔹 Redirect-away if already authenticated
 import useRedirectIfAuthed from './hooks/useRedirectIfAuthed';
 
 function Login() {
@@ -18,23 +18,51 @@ function Login() {
   const [showPassword, setShowPassword] = useState(false);
   const [message, setMessage] = useState('');
   const [showResend, setShowResend] = useState(false);
+
+  // ✅ NEW: banners
   const [showVerified, setShowVerified] = useState(false);
+  const [showSignupSuccess, setShowSignupSuccess] = useState(false);
 
   const navigate = useNavigate();
   const { search } = useLocation();
   const { login } = useAuth();
   const passwordRef = useRef(null);
 
-  // Read query params: verified + email
+  // Read query params: verified + email + flash (signup_success)
   useEffect(() => {
     const params = new URLSearchParams(search);
+
+    // If they just clicked the email verify link and returned: ?verified=1
     if (params.get('verified') === '1') {
       setShowVerified(true);
+      // focus password for quick login
       setTimeout(() => passwordRef.current?.focus(), 0);
     }
+
+    // If they just signed up and we redirected here: ?flash=signup_success&email=...
+    if (params.get('flash') === 'signup_success') {
+      setShowSignupSuccess(true);
+    }
+
+    // Prefill email: querystring first, then localStorage fallback
     const emailFromQuery = params.get('email');
+    const storedEmail = localStorage.getItem('ck_prefill_email') || '';
     if (emailFromQuery) setEmail(emailFromQuery);
+    else if (storedEmail) setEmail(storedEmail);
+
+    // Clear the stored prefill after a bit so it doesn't linger
+    if (storedEmail) {
+      const t = setTimeout(() => localStorage.removeItem('ck_prefill_email'), 30000);
+      return () => clearTimeout(t);
+    }
   }, [search]);
+
+  // Auto-dismiss the signup success banner
+  useEffect(() => {
+    if (!showSignupSuccess) return;
+    const t = setTimeout(() => setShowSignupSuccess(false), 6000);
+    return () => clearTimeout(t);
+  }, [showSignupSuccess]);
 
   const togglePasswordVisibility = () => setShowPassword((p) => !p);
 
@@ -72,6 +100,26 @@ function Login() {
       <div className="login-box">
         <h1 className="brand-title">Content Key</h1>
 
+        {/* ✅ NEW: “Congrats, check email” banner after signup */}
+        {showSignupSuccess && (
+          <div
+            role="status"
+            style={{
+              background: '#ecfdf5',
+              border: '1px solid #a7f3d0',
+              color: '#065f46',
+              padding: '10px 12px',
+              borderRadius: 8,
+              marginBottom: 12,
+              fontWeight: 700,
+              textAlign: 'center',
+            }}
+          >
+            🎉 Congratulations! Your account was created. Please check your email to confirm, then log in here.
+          </div>
+        )}
+
+        {/* Existing: “Email verified” banner */}
         {showVerified && (
           <div
             style={{
