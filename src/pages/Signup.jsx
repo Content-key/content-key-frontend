@@ -1,8 +1,11 @@
+// src/pages/Signup.jsx
 import React, { useState } from 'react';
 import axios from 'axios';
 import { useNavigate, Link } from 'react-router-dom';
-import '../Signup.css';
-import useRedirectIfAuthed from './hooks/useRedirectIfAuthed';
+
+// ✅ paths fixed after moving into src/pages/
+import '.../Signup.css';
+import useRedirectIfAuthed from '.../hooks/useRedirectIfAuthed';
 
 function Signup() {
   const navigate = useNavigate();
@@ -55,7 +58,6 @@ function Signup() {
       const res = await axios.post(`${API_BASE_URL}/api/signup`, formData, { withCredentials: true });
       console.log('[Signup] success payload:', res?.data);
 
-      // Prefill login email + redirect
       localStorage.setItem('ck_prefill_email', formData.email || '');
       const emailQS = encodeURIComponent(formData.email || '');
       const dest = `/login?flash=signup_success&email=${emailQS}`;
@@ -81,33 +83,22 @@ function Signup() {
   return (
     <div className="signup-container">
 
-      {/* ---- Top bar with Home button ---- */}
-      <div style={{
-        display: 'flex',
-        justifyContent: 'flex-end',
-        alignItems: 'center',
-        marginBottom: 10
-      }}>
+      {/* Top bar with Home button */}
+      <div style={{ display:'flex', justifyContent:'flex-end', alignItems:'center', marginBottom:10 }}>
         <Link
           to="/"
           style={{
-            textDecoration: 'none',
-            background: '#111827',
-            color: '#fff',
-            border: '1px solid #111827',
-            padding: '8px 12px',
-            borderRadius: 10,
-            fontWeight: 800,
-            boxShadow: '0 6px 16px rgba(0,0,0,0.15)'
+            textDecoration:'none',
+            background:'#111827',
+            color:'#fff',
+            border:'1px solid #111827',
+            padding:'8px 12px',
+            borderRadius:10,
+            fontWeight:800,
+            boxShadow:'0 6px 16px rgba(0,0,0,0.15)'
           }}
-          onMouseOver={(e) => {
-            e.currentTarget.style.background = '#0b1220';
-            e.currentTarget.style.borderColor = '#0b1220';
-          }}
-          onMouseOut={(e) => {
-            e.currentTarget.style.background = '#111827';
-            e.currentTarget.style.borderColor = '#111827';
-          }}
+          onMouseOver={(e) => { e.currentTarget.style.background='#0b1220'; e.currentTarget.style.borderColor='#0b1220'; }}
+          onMouseOut={(e) => { e.currentTarget.style.background='#111827'; e.currentTarget.style.borderColor='#111827'; }}
         >
           ← Home
         </Link>
@@ -115,7 +106,7 @@ function Signup() {
 
       <form className="signup-form" onSubmit={handleSubmit}>
         <h1><strong>Join Content Key</strong></h1>
-        <p style={{ textAlign:'center', fontSize:'16px', marginTop:'-10px', marginBottom:'20px' }}>
+        <p style={{ textAlign:'center', fontSize:16, marginTop:'-10px', marginBottom:20 }}>
           You’re one of the first to join the future of content creation and sponsorship.<br />
           <em>This is a trial version – your feedback shapes the platform.</em>
         </p>
@@ -140,14 +131,11 @@ function Signup() {
           <input name="streetAddress" placeholder="Street Address" onChange={handleChange} />
         </div>
 
-        {/* City, State, Zip on one row */}
         <div className="row row-compact">
           <input name="city" placeholder="City" onChange={handleChange} />
           <select name="state" value={formData.state} onChange={handleChange}>
             <option value="">State</option>
-            {usStates.map((abbr) => (
-              <option key={abbr} value={abbr}>{abbr}</option>
-            ))}
+            {usStates.map((abbr) => (<option key={abbr} value={abbr}>{abbr}</option>))}
           </select>
           <input name="zipCode" placeholder="Zip Code" onChange={handleChange} />
         </div>
