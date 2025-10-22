@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import axios from 'axios';
 import { useNavigate, Link } from 'react-router-dom';
-import './Signup.css';
+import '../Signup.css';
 import useRedirectIfAuthed from './hooks/useRedirectIfAuthed';
 
 function Signup() {
