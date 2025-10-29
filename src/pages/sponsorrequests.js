@@ -7,7 +7,7 @@ import './SponsorDashboard.css';
 export default function SponsorRequests() {
   const navigate = useNavigate();
 
-  const [activeTab, setActiveTab] = useState('pending'); // 'pending' | 'resolved'
+  const [activeTab, setActiveTab] = useState('pending'); // 'pending' | 'resolved' | 'all'
   const [items, setItems] = useState([]);
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(1);
@@ -24,40 +24,42 @@ export default function SponsorRequests() {
     setTimeout(() => setToast(''), 2400);
   };
 
+  // Inbox always returns { requests: [...] }
+  const toArray = (data) => (Array.isArray(data?.requests) ? data.requests : []);
+
   const refreshPendingCount = async () => {
     try {
-      // Use inbox count for accuracy with new endpoint
-      const { data } = await api.get('/api/requests/inbox');
-      setPendingCount(Array.isArray(data?.requests) ? data.requests.length : 0);
-    } catch {/* noop */}
+      const { data } = await api.get('/api/requests/inbox', {
+        params: { status: 'pending' },
+      });
+      const arr = toArray(data);
+      setPendingCount(arr.length);
+    } catch {
+      // noop
+    }
   };
 
   const fetchData = async (status = activeTab, p = page) => {
     setLoading(true);
     setError('');
     try {
-      if (status === 'pending') {
-        // ✅ Use the new snapshot-based endpoint
-        const { data } = await api.get('/api/requests/inbox');
-        const arr = Array.isArray(data?.requests) ? data.requests : [];
-        setItems(arr);
-        setTotal(arr.length);
-        setPage(1);
-      } else {
-        // Keep existing resolved listing w/ pagination
-        const { data } = await api.get('/api/requests', {
-          params: { status, page: p, pageSize }
-        });
-        setItems(Array.isArray(data?.items) ? data.items : []);
-        setTotal(Number(data?.total || 0));
-        setPage(Number(data?.page || 1));
-      }
+      // Use the rich inbox endpoint for all tabs (supports status=pending|resolved|all)
+      const { data } = await api.get('/api/requests/inbox', {
+        params: { status },
+      });
 
-      if (status === 'pending') setPendingCount((prev) => prev); // already refreshed by inbox
+      const arr = toArray(data);
+      setItems(arr);
+      setTotal(arr.length);
+      setPage(1);
+
+      // keep badge in sync
+      if (status === 'pending') setPendingCount(arr.length);
     } catch (e) {
       console.error('Fetch requests error:', e);
       setError(e?.response?.data?.error || 'Failed to load requests');
       setItems([]);
+      setTotal(0);
     } finally {
       setLoading(false);
     }
@@ -82,7 +84,7 @@ export default function SponsorRequests() {
     try {
       await api.patch(`/api/requests/${id}/approve`);
       showToast('✅ Request approved');
-      if (activeTab === 'resolved') fetchData('resolved', page);
+      if (activeTab !== 'pending') fetchData(activeTab, page);
       refreshPendingCount();
     } catch (e) {
       console.error('Approve error:', e);
@@ -98,7 +100,7 @@ export default function SponsorRequests() {
     try {
       await api.patch(`/api/requests/${id}/deny`, reason ? { reason } : {});
       showToast('🛑 Request denied');
-      if (activeTab === 'resolved') fetchData('resolved', page);
+      if (activeTab !== 'pending') fetchData(activeTab, page);
       refreshPendingCount();
     } catch (e) {
       console.error('Deny error:', e);
@@ -139,50 +141,38 @@ export default function SponsorRequests() {
     fetchData(activeTab, page + 1);
   };
 
-  // ------- helpers to render either shape (inbox snapshots or resolved list) -------
-  const getJobTitle = (r) => r.jobTitle || r.jobId?.title || 'Request';
-  const getJobIdStr = (r) => (typeof r.jobId === 'object' ? r.jobId?._id : r.jobId);
-  const getCreatorDisplay = (r) =>
-    r.stageName || r.creatorName ||
-    r.creatorId?.stageName || r.creatorId?.fullName || r.creatorId?.email ||
-    (typeof r.creatorId === 'string' ? r.creatorId : 'Unknown');
-  const getDistance = (r) => {
-    const v = r.distanceMiles ?? r.creatorToJobMiles ?? r.sponsorToJobMiles;
-    return typeof v === 'number' ? `${v.toFixed(1)} mi` : null;
-  };
-  const getLocation = (r) =>
-    r.city || r.state ? `${r.city || ''}${r.city && r.state ? ', ' : ''}${r.state || ''}` : null;
-
-  const badge = (count) =>
-    count > 0 ? (
-      <span
-        style={{
-          display: 'inline-flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          marginLeft: 8,
-          minWidth: 20,
-          height: 20,
-          padding: '0 6px',
-          borderRadius: 12,
-          background: '#e60023',
-          color: '#fff',
-          fontSize: 12,
-          fontWeight: 700,
-          lineHeight: 1,
-        }}
-        aria-label={`${count} pending request${count === 1 ? '' : 's'}`}
-        role="status"
-      >
-        {count}
-      </span>
-    ) : null;
+  // ------- format helpers -------
+  const fmtMiles = (n) => (typeof n === 'number' ? `${n.toFixed(1)} miles away` : '—');
+  const cityState = (city, state) =>
+    [city, state].filter(Boolean).join(', ') || '—';
+  const when = (d) => (d ? new Date(d).toLocaleString() : '—');
 
   return (
     <div className="dashboard-wrapper">
       <div className="form-section">
         <h1>
-          Requests Inbox {badge(pendingCount)}
+          Requests Inbox{' '}
+          {pendingCount > 0 && (
+            <span
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                marginLeft: 8,
+                minWidth: 20,
+                height: 20,
+                padding: '0 6px',
+                borderRadius: 12,
+                background: '#e60023',
+                color: '#fff',
+                fontSize: 12,
+                fontWeight: 700,
+                lineHeight: 1
+              }}
+            >
+              {pendingCount}
+            </span>
+          )}
         </h1>
 
         {/* Nav buttons */}
@@ -197,13 +187,37 @@ export default function SponsorRequests() {
             className={activeTab === 'pending' ? 'active-tab' : ''}
             onClick={() => onTab('pending')}
           >
-            Pending {badge(pendingCount)}
+            Pending{' '}
+            {pendingCount > 0 && (
+              <span
+                style={{
+                  marginLeft: 6,
+                  minWidth: 22,
+                  height: 22,
+                  padding: '0 6px',
+                  borderRadius: 999,
+                  fontSize: 12,
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  background: 'rgba(0,0,0,0.15)'
+                }}
+              >
+                {pendingCount}
+              </span>
+            )}
           </button>
           <button
             className={activeTab === 'resolved' ? 'active-tab' : ''}
             onClick={() => onTab('resolved')}
           >
             Resolved
+          </button>
+          <button
+            className={activeTab === 'all' ? 'active-tab' : ''}
+            onClick={() => onTab('all')}
+          >
+            All
           </button>
         </div>
 
@@ -227,27 +241,46 @@ export default function SponsorRequests() {
           ) : (
             <ul className="job-list">
               {items.map((r) => {
-                const id = r._id || r.id;
-                const title = getJobTitle(r);
-                const jobIdStr = getJobIdStr(r);
-                const creator = getCreatorDisplay(r);
-                const distance = getDistance(r);
-                const loc = getLocation(r);
+                const id = r.id || r._id;
 
                 return (
                   <li key={id} className="job-card" style={{ padding: 16 }}>
-                    <h3>{title}</h3>
+                    <h3>{r.jobTitle || 'Job'}</h3>
 
-                    <p><strong>Request ID:</strong> {id}</p>
-                    <p><strong>Job ID:</strong> {jobIdStr}</p>
-                    <p><strong>Creator:</strong> {creator}</p>
-                    {loc && <p><strong>Location:</strong> {loc}</p>}
-                    {distance && <p><strong>Distance:</strong> {distance}</p>}
-                    {r.note ? <p><strong>Note:</strong> {r.note}</p> : null}
-                    <p><strong>Created:</strong> {new Date(r.createdAt).toLocaleString()}</p>
+                    <p>
+                      <strong>Agent:</strong> {r.agentName || '—'}
+                    </p>
+                    <p>
+                      <strong>Creator:</strong>{' '}
+                      {r.creatorName || r.stageName || '—'}{' '}
+                      <span style={{ color: '#555' }}>
+                        ({cityState(r.creatorCity, r.creatorState)})
+                      </span>
+                    </p>
+                    <p>
+                      <strong>Distance:</strong> {fmtMiles(r.distanceMiles)}
+                    </p>
+
+                    <p style={{ marginTop: 6 }}>
+                      <strong>Job Location:</strong>{' '}
+                      {cityState(r.jobCity, r.jobState)}
+                      {r.jobRadiusMiles != null && (
+                        <> · <strong>Radius:</strong> {r.jobRadiusMiles} miles</>
+                      )}
+                    </p>
+
+                    {r.note ? (
+                      <p style={{ marginTop: 6 }}>
+                        <strong>Note from creator:</strong> {r.note}
+                      </p>
+                    ) : null}
+
+                    <p style={{ marginTop: 6 }}>
+                      <strong>Requested:</strong> {when(r.createdAt)}
+                    </p>
 
                     {activeTab === 'pending' ? (
-                      <div style={{ display: 'flex', gap: 10, marginTop: 8 }}>
+                      <div style={{ display: 'flex', gap: 10, marginTop: 10 }}>
                         <button
                           className="active-tab"
                           style={{ background: 'green', color: '#fff' }}
@@ -260,10 +293,9 @@ export default function SponsorRequests() {
                         </button>
                       </div>
                     ) : (
-                      <>
-                        <p><strong>Status:</strong> {r.status}</p>
-                        <p><strong>Resolved:</strong> {r.resolvedAt ? new Date(r.resolvedAt).toLocaleString() : '—'}</p>
-                      </>
+                      <p style={{ marginTop: 6 }}>
+                        <strong>Status:</strong> {r.status || '—'}
+                      </p>
                     )}
                   </li>
                 );
@@ -271,15 +303,15 @@ export default function SponsorRequests() {
             </ul>
           )}
 
-          {/* Pagination (resolved tab only effectively) */}
+          {/* Pagination controls kept for parity (not needed for inbox right now) */}
           <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
-            <button onClick={prevPage} disabled={page <= 1 || activeTab === 'pending'}>Prev</button>
+            <button onClick={prevPage} disabled={page <= 1}>Prev</button>
             <span style={{ alignSelf: 'center' }}>
               Page {page} · {total} total
             </span>
             <button
               onClick={nextPage}
-              disabled={activeTab === 'pending' || page * pageSize >= total}
+              disabled={page * pageSize >= total}
             >
               Next
             </button>

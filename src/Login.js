@@ -72,7 +72,9 @@ function Login() {
     setShowResend(false);
 
     try {
-      const res = await api.post('/api/login', { email, password });
+    
+      const res = await api.post('/api/auth/login', { email, password });
+
       const { token, user } = res.data;
 
       login(token, user);

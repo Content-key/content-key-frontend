@@ -18,12 +18,11 @@ function CreatorDashboard() {
   const [view, setView] = useState('upForGrabs');
   const [userName, setUserName] = useState('');
   const [err, setErr] = useState('');
-
-  // allow blank; blank means “0” (show no local jobs)
-  const [radiusMiles, setRadiusMiles] = useState('25');
-
-  // 🔹 Request Inbox badge count
+  const [radiusMiles, setRadiusMiles] = useState('25'); // allow blank; blank => 0
   const [reqCount, setReqCount] = useState(0);
+
+  // NEW: tracks jobs you've already requested to avoid dupes
+  const [requestedJobIds, setRequestedJobIds] = useState(new Set());
 
   const navigate = useNavigate();
   const { user: authUser, logout } = useAuth();
@@ -38,14 +37,14 @@ function CreatorDashboard() {
     setUserName(name);
   }, [authUser]);
 
-  // Initial load
   useEffect(() => {
     handleTabClick('upForGrabs');
+    hydrateRequestedJobs();     // 👈 populate requestedJobIds
     fetchCreatorRequestCount();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // ---- payout helper ----
+  // ---------- payout display ----------
   const getPayoutString = (job) => {
     const stored = job?.creatorPayoutPerCreator;
     if (stored != null && !Number.isNaN(Number(stored))) {
@@ -60,17 +59,16 @@ function CreatorDashboard() {
     return (perCreatorCents / 100).toFixed(2);
   };
 
+  // ---------- jobs fetchers ----------
   const fetchAcceptedJobs = async () => {
     const { data } = await api.get('/api/jobs/my-jobs');
     return data.jobs || [];
   };
 
-  // Visible jobs from server (server enforces geo & UFG logic)
   const fetchVisibleJobs = async () => {
     setLoading(true);
     setErr('');
     try {
-      // normalize radius: blank/invalid -> 0; cap to 5000 like backend
       const n = Number.parseFloat(radiusMiles);
       let radiusParam = Number.isFinite(n) && n >= 0 ? n : 0;
       if (radiusParam > 5000) radiusParam = 5000;
@@ -98,7 +96,7 @@ function CreatorDashboard() {
     }
   };
 
-  // kept: my/pending/past flows
+  // My Jobs = accepted but no links yet
   const fetchMyJobs = async () => {
     setLoading(true);
     try {
@@ -115,15 +113,13 @@ function CreatorDashboard() {
     setLoading(false);
   };
 
+  // Pending = links submitted
   const fetchPendingJobs = async () => {
     setLoading(true);
     try {
       const jobs = await fetchAcceptedJobs();
       const pending = jobs.filter(
-        (job) =>
-          job.status === 'Submitted' &&
-          job.submittedLinks &&
-          job.submittedLinks.length > 0
+        (job) => Array.isArray(job.submittedLinks) && job.submittedLinks.length > 0
       );
       setPendingJobs(pending);
     } catch (err) {
@@ -157,20 +153,71 @@ function CreatorDashboard() {
     if (type === 'pastJobs') fetchPastJobs();
   };
 
+  /* ==============================
+     FIX: Accept Job endpoint
+     was: POST /api/accepted-jobs
+     now: POST /api/jobs/:jobId/accept
+     ============================== */
   const handleAccept = async (jobId) => {
     try {
-      await api.post('/api/accepted-jobs', { jobId });
+      await api.post(`/api/jobs/${jobId}/accept`);
       alert('✅ Job accepted!');
       fetchVisibleJobs();
       fetchMyJobs();
     } catch (err) {
-      const msg = err?.response?.data?.error || '❌ Failed to accept job';
+      const msg =
+        err?.response?.data?.error ||
+        (err?.response?.status === 409
+          ? 'This job has already been accepted.'
+          : '❌ Failed to accept job');
       alert(msg);
       console.error('Accept job error:', err);
     }
   };
 
-  // 🔹 fetch creator's request count (client-filtered as a fallback)
+  // ---------- REQUEST ACCESS: hydrate + count ----------
+  const hydrateRequestedJobs = async () => {
+    try {
+      // Prefer dedicated endpoint if available
+      let requestsResp;
+      try {
+        requestsResp = await api.get('/api/job-requests/mine');
+      } catch {
+        requestsResp = await api.get('/api/job-requests');
+      }
+
+      const list = Array.isArray(requestsResp?.data?.requests)
+        ? requestsResp.data.requests
+        : Array.isArray(requestsResp?.data)
+        ? requestsResp.data
+        : [];
+
+      const myId = authUser?._id;
+      const mine = list.filter(
+        (r) =>
+          r?.requesterId === myId ||
+          r?.creatorId === myId ||
+          r?.actor === 'creator'
+      );
+
+      // Gather job IDs with active statuses
+      const activeMine = mine.filter((r) =>
+        ['pending', 'approved'].includes(String(r?.status || 'pending').toLowerCase())
+      );
+
+      const ids = new Set(
+        activeMine
+          .map((r) => r?.jobId || r?.job?._id)
+          .filter(Boolean)
+      );
+
+      setRequestedJobIds(ids);
+    } catch (e) {
+      console.warn('hydrateRequestedJobs failed', e);
+      setRequestedJobIds(new Set());
+    }
+  };
+
   const fetchCreatorRequestCount = async () => {
     try {
       const res = await api.get('/api/job-requests').catch(() => ({ data: [] }));
@@ -197,61 +244,63 @@ function CreatorDashboard() {
     }
   };
 
+  // ---------- REQUEST ACCESS: guarded post ----------
   const handleRequestAccess = async (jobId) => {
+    // block duplicate requests client-side
+    if (requestedJobIds.has(jobId)) {
+      alert('You already have a request pending for this job.');
+      return;
+    }
+
     try {
       const note = window.prompt(
         'Optional note to sponsor (why you can do this job):',
         ''
       );
+
       await api.post('/api/job-requests', { jobId, note: note || '' });
+
       alert('✅ Request sent to sponsor!');
+      // update local sets/counters optimistically
+      setRequestedJobIds((prev) => {
+        const next = new Set(prev);
+        next.add(jobId);
+        return next;
+      });
       setReqCount((n) => (Number.isFinite(n) ? n + 1 : 1));
-      fetchCreatorRequestCount();
     } catch (err) {
       const code = err?.response?.status;
-      const msg =
-        err?.response?.data?.error ||
-        (code === 404
-          ? 'Request service not available yet.'
-          : '❌ Failed to send request');
-      alert(msg);
-      console.error('Request access error:', err);
+      if (code === 409) {
+        // server says it's already pending — reflect that in UI
+        setRequestedJobIds((prev) => {
+          const next = new Set(prev);
+          next.add(jobId);
+          return next;
+        });
+        alert('You already have a request pending for this job.');
+      } else {
+        const msg =
+          err?.response?.data?.error ||
+          (code === 404
+            ? 'Request service not available yet.'
+            : '❌ Failed to send request');
+        alert(msg);
+        console.error('Request access error:', err);
+      }
+    } finally {
+      // keep the badge and list in sync
+      fetchCreatorRequestCount();
     }
   };
 
-  // Token resolver for notifications hook
-  const getTokenFromStorage = () => {
-    try {
-      const raw = localStorage.getItem('ck_auth');
-      if (raw) {
-        const parsed = JSON.parse(raw);
-        return parsed?.token || parsed?.accessToken || '';
-      }
-    } catch {}
-    return (
-      localStorage.getItem('ck_token') || localStorage.getItem('token') || ''
-    );
-  };
-
-  // Wire notifications → refresh My Jobs on assignment
-  useNotifications({
-    getToken: getTokenFromStorage,
-    onAssignment: () => {
-      setView('myJobs');
-      fetchMyJobs();
-    },
-  });
-
+  // ---------- list helpers ----------
   const getDisplayedJobs = () => {
     if (view === 'myJobs') return myJobs;
     if (view === 'localJobs') return localJobs;
     if (view === 'upForGrabs') return upForGrabsJobs;
-    if (view === 'pendingJobs') return pendingJobs;
-    if (view === 'pastJobs') return pastJobs;
     return [];
   };
 
-  // If Local tab has a geo error, show banner but DO NOT block dashboard
   const showLocalGeoBanner =
     view === 'localJobs' && err === 'Your profile is missing latitude/longitude';
 
@@ -277,14 +326,17 @@ function CreatorDashboard() {
               borderRadius: 12,
               textDecoration: 'none',
               fontWeight: 800,
-              background: '#7c3aed',        // violet-600
+              background: '#7c3aed',
               border: '1px solid #7c3aed',
               color: '#ffffff',
               boxShadow: '0 8px 20px rgba(124, 58, 237, 0.25)'
             }}
-            onMouseEnter={fetchCreatorRequestCount}
+            onMouseEnter={() => {
+              hydrateRequestedJobs();
+              fetchCreatorRequestCount();
+            }}
             onMouseOver={(e) => {
-              e.currentTarget.style.background = '#6d28d9'; // violet-700
+              e.currentTarget.style.background = '#6d28d9';
               e.currentTarget.style.borderColor = '#6d28d9';
             }}
             onMouseOut={(e) => {
@@ -354,7 +406,6 @@ function CreatorDashboard() {
           </p>
         )}
 
-        {/* Radius filter bar */}
         {showFilterBar && (
           <div
             className="filter-bar"
@@ -379,6 +430,7 @@ function CreatorDashboard() {
           </div>
         )}
 
+        {/* Pending submissions */}
         {view === 'pendingJobs' && (
           <>
             <p className="info-text">
@@ -389,18 +441,30 @@ function CreatorDashboard() {
                 <li key={job._id} className="job-card">
                   <h3>{job.title}</h3>
                   <p>{job.description}</p>
+                  <p><strong>Payout:</strong> ${getPayoutString(job)}</p>
+
+                  <p><strong>Agent Name:</strong> {job.agentName || '—'}</p>
+                  <p><strong>Agent Contact:</strong> {job.agentPhone || '—'}</p>
                   <p>
-                    <strong>Payout:</strong> ${getPayoutString(job)}
+                    <strong>Location:</strong>{' '}
+                    {[job.city, job.state].filter(Boolean).join(', ') || '—'}
                   </p>
-                  <ul>
-                    {job.submittedLinks?.map((link, index) => (
-                      <li key={index}>
-                        <a href={link} target="_blank" rel="noopener noreferrer">
-                          {link}
-                        </a>
-                      </li>
-                    ))}
-                  </ul>
+                  {job.radiusMiles != null && (
+                    <p><strong>Radius:</strong> {job.radiusMiles} miles</p>
+                  )}
+
+                  {Array.isArray(job.submittedLinks) && job.submittedLinks.length > 0 && (
+                    <ul style={{ marginTop: 8 }}>
+                      {job.submittedLinks.map((link, index) => (
+                        <li key={index}>
+                          <a href={link} target="_blank" rel="noopener noreferrer">
+                            {link}
+                          </a>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+
                   <span className="badge-warning">⏳ Pending Sponsor Approval</span>
                 </li>
               ))}
@@ -408,6 +472,7 @@ function CreatorDashboard() {
           </>
         )}
 
+        {/* Past (approved) */}
         {view === 'pastJobs' && (
           <>
             <p className="info-text">These are your completed jobs.</p>
@@ -416,33 +481,10 @@ function CreatorDashboard() {
                 <li key={job._id} className="job-card">
                   <h3>{job.title}</h3>
                   <p>{job.description}</p>
-                  <p>
-                    <strong>Payout:</strong> ${getPayoutString(job)}
-                  </p>
-                  <span className="badge-complete">✅ Approved & Paid</span>
-                </li>
-              ))}
-            </ul>
-          </>
-        )}
+                  <p><strong>Payout:</strong> ${getPayoutString(job)}</p>
 
-        {loading ? (
-          <p>Loading jobs...</p>
-        ) : (
-          <>
-            {/* Primary jobs list (UFG or Local eligible) */}
-            <ul className="job-list">
-              {getDisplayedJobs().map((job) => (
-                <li key={job._id} className="job-card">
-                  <h3>{job.title}</h3>
-                  <p>{job.description}</p>
-                  <p>
-                    <strong>Payout:</strong> ${getPayoutString(job)}
-                  </p>
-                  <p>
-                    <strong>Agent Name:</strong> {job.agentName}</p>
-                  <p>
-                    <strong>Agent Contact:</strong> {job.agentPhone}</p>
+                  <p><strong>Agent Name:</strong> {job.agentName || '—'}</p>
+                  <p><strong>Agent Contact:</strong> {job.agentPhone || '—'}</p>
                   <p>
                     <strong>Location:</strong>{' '}
                     {[job.city, job.state].filter(Boolean).join(', ') || '—'}
@@ -450,25 +492,63 @@ function CreatorDashboard() {
                   {job.radiusMiles != null && (
                     <p><strong>Radius:</strong> {job.radiusMiles} miles</p>
                   )}
+
+                  {Array.isArray(job.submittedLinks) && job.submittedLinks.length > 0 && (
+                    <ul style={{ marginTop: 8 }}>
+                      {job.submittedLinks.map((link, index) => (
+                        <li key={index}>
+                          <a href={link} target="_blank" rel="noopener noreferrer">
+                            {link}
+                          </a>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+
+                  <span className="badge-complete">✅ Approved</span>
+                </li>
+              ))}
+            </ul>
+          </>
+        )}
+
+        {/* Generic list for Up for Grabs / Local / My */}
+        {loading ? (
+          <p>Loading jobs...</p>
+        ) : view !== 'pendingJobs' && view !== 'pastJobs' ? (
+          <>
+            <ul className="job-list">
+              {getDisplayedJobs().map((job) => (
+                <li key={job._id} className="job-card">
+                  <h3>{job.title}</h3>
+                  <p>{job.description}</p>
+                  <p><strong>Payout:</strong> ${getPayoutString(job)}</p>
+                  <p><strong>Agent Name:</strong> {job.agentName}</p>
+                  <p><strong>Agent Contact:</strong> {job.agentPhone}</p>
+                  <p>
+                    <strong>Location:</strong>{' '}
+                    {[job.city, job.state].filter(Boolean).join(', ') || '—'}
+                  </p>
+                  {job.radiusMiles != null && (
+                    <p><strong>Radius:</strong> {job.radiusMiles} miles</p>
+                  )}
+
                   {['upForGrabs', 'localJobs'].includes(view) && (
                     <button onClick={() => handleAccept(job._id)}>
                       Accept Job
                     </button>
                   )}
+
                   {view === 'myJobs' && (
                     <>
                       <p><em>No content links submitted yet</em></p>
-                      <MultiLinkSubmit
-                        jobId={job.acceptedJobId}
-                        onSubmitSuccess={fetchMyJobs}
-                      />
+                      <MultiLinkSubmit jobId={job._id} onSubmitSuccess={fetchMyJobs} />
                     </>
                   )}
                 </li>
               ))}
             </ul>
 
-            {/* Outside-radius section (request access) */}
             {view === 'localJobs' && outsideRadiusJobs.length > 0 && (
               <>
                 <h3 style={{ marginTop: 20 }}>
@@ -479,28 +559,37 @@ function CreatorDashboard() {
                   radius. Send a request to be considered.
                 </p>
                 <ul className="job-list">
-                  {outsideRadiusJobs.map((job) => (
-                    <li key={job._id} className="job-card">
-                      <h3>{job.title}</h3>
-                      <p>{job.description}</p>
-                      <p><strong>Payout:</strong> ${getPayoutString(job)}</p>
-                      {typeof job.distanceMiles === 'number' && (
-                        <p><strong>Distance:</strong> {job.distanceMiles.toFixed(1)} miles away</p>
-                      )}
-                      {job.radiusMiles != null && (
-                        <p><strong>Sponsor Radius:</strong> {job.radiusMiles} miles</p>
-                      )}
-                      <p><em>Outside radius — request access</em></p>
-                      <button onClick={() => handleRequestAccess(job._id)}>
-                        Request Access
-                      </button>
-                    </li>
-                  ))}
+                  {outsideRadiusJobs.map((job) => {
+                    const pending = requestedJobIds.has(job._id);
+                    return (
+                      <li key={job._id} className="job-card">
+                        <h3>{job.title}</h3>
+                        <p>{job.description}</p>
+                        <p><strong>Payout:</strong> ${getPayoutString(job)}</p>
+                        {typeof job.distanceMiles === 'number' && (
+                          <p><strong>Distance:</strong> {job.distanceMiles.toFixed(1)} miles away</p>
+                        )}
+                        {job.radiusMiles != null && (
+                          <p><strong>Sponsor Radius:</strong> {job.radiusMiles} miles</p>
+                        )}
+                        <p><em>Outside radius — request access</em></p>
+
+                        <button
+                          onClick={() => handleRequestAccess(job._id)}
+                          disabled={pending}
+                          aria-disabled={pending}
+                          title={pending ? 'Request already pending' : 'Request Access'}
+                        >
+                          {pending ? '⏳ Request Pending' : 'Request Access'}
+                        </button>
+                      </li>
+                    );
+                  })}
                 </ul>
               </>
             )}
           </>
-        )}
+        ) : null}
       </div>
 
       <div className="tips-section">
@@ -540,6 +629,12 @@ function CreatorDashboard() {
 function MultiLinkSubmit({ jobId, onSubmitSuccess }) {
   const [links, setLinks] = useState([{ type: 'YouTube', url: '' }]);
 
+  const normalizeUrl = (u) => {
+    const s = String(u || '').trim();
+    if (!s) return '';
+    return /^https?:\/\//i.test(s) ? s : `https://${s}`;
+  };
+
   const handleChange = (index, field, value) => {
     const updated = [...links];
     updated[index][field] = value;
@@ -552,16 +647,33 @@ function MultiLinkSubmit({ jobId, onSubmitSuccess }) {
   const handleSubmit = async (e) => {
     e.preventDefault();
     try {
-      const formattedLinks = links.map((link) => link.url);
+      const payloadLinks = links
+        .map((l) => ({ type: l.type, url: normalizeUrl(l.url) }))
+        .filter((l) => l.url);
+
+      if (!jobId) {
+        alert('Missing jobId.');
+        return;
+      }
+      if (payloadLinks.length === 0) {
+        alert('Please add at least one link.');
+        return;
+      }
+
       await api.post('/api/accepted-jobs/submit-links', {
         jobId,
-        contentLinks: formattedLinks,
+        links: payloadLinks,
       });
-      alert('Links submitted!');
-      onSubmitSuccess();
+
+      alert('✅ Links submitted!');
+      if (typeof onSubmitSuccess === 'function') onSubmitSuccess();
     } catch (error) {
       console.error(error);
-      const msg = error?.response?.data?.error || 'Submission failed.';
+      const msg =
+        error?.response?.data?.error ||
+        (error?.response?.status === 404
+          ? 'Submit service not available yet.'
+          : 'Submission failed.');
       alert(msg);
     }
   };
@@ -574,10 +686,10 @@ function MultiLinkSubmit({ jobId, onSubmitSuccess }) {
             value={link.type}
             onChange={(e) => handleChange(index, 'type', e.target.value)}
           >
-            <option>YouTube</option>
-            <option>Facebook</option>
-            <option>Instagram</option>
-            <option>Other</option>
+            <option value="YouTube">YouTube</option>
+            <option value="Facebook">Facebook</option>
+            <option value="Instagram">Instagram</option>
+            <option value="Other">Other</option>
           </select>
           <input
             type="url"

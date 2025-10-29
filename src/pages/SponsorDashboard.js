@@ -3,14 +3,14 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import './SponsorDashboard.css';
 
-import { api } from '../api/axios';            // ⬅️ shared axios instance
-import { useAuth } from '../auth/AuthProvider'; // ⬅️ auth context
+import { api } from '../api/axios';
+import { useAuth } from '../auth/AuthProvider';
 
 function SponsorDashboard() {
   const [jobs, setJobs] = useState([]);
+  const [linksSubs, setLinksSubs] = useState([]); // one card per submission
   const [loading, setLoading] = useState(true);
 
-  // Reuse message/popup for notifications too
   const [message, setMessage] = useState('');
   const [showPopup, setShowPopup] = useState(false);
 
@@ -19,10 +19,7 @@ function SponsorDashboard() {
   const navigate = useNavigate();
   const { logout } = useAuth();
 
-  // ⬇️ NEW: live badge for pending requests
   const [pendingReqCount, setPendingReqCount] = useState(0);
-
-  // ⬇️ Track which notification IDs we've already surfaced (avoid duplicate popups)
   const seenNotifIdsRef = useRef(new Set());
 
   const [formData, setFormData] = useState({
@@ -35,24 +32,27 @@ function SponsorDashboard() {
     multiple: false,
     agentName: 'Curtis Mckinney',
     agentPhone: '540-642-6867',
-    // radius in miles for location-based jobs
     radiusMiles: '25',
   });
 
   useEffect(() => {
-    // read user from ck_auth (AuthProvider storage)
-    const raw = localStorage.getItem('ck_auth');
-    if (raw) {
-      try {
+    try {
+      const raw = localStorage.getItem('ck_auth');
+      if (raw) {
         const { user } = JSON.parse(raw);
         if (user) setUserName(user.fullName || user.businessName || 'Sponsor');
-      } catch {}
-    }
-    fetchJobs();
-    refreshPendingCount();     // ⬅️ keep badge in sync on load
-    startSponsorPolling();     // ⬅️ begin notification polling
+      }
+    } catch {}
+    bootstrap();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  const bootstrap = async () => {
+    setLoading(true);
+    await Promise.all([fetchJobs(), fetchLinksSubmitted(), refreshPendingCount()]);
+    startSponsorPolling();
+    setLoading(false);
+  };
 
   const handleLogout = () => {
     logout();
@@ -74,7 +74,9 @@ function SponsorDashboard() {
     try {
       const repeat = parseInt(formData.repeatCount) || 1;
       const totalBudget = parseFloat(formData.budget);
-      const perJobBudget = formData.multiple ? Number((totalBudget / repeat).toFixed(2)) : totalBudget;
+      const perJobBudget = formData.multiple
+        ? Number((totalBudget / repeat).toFixed(2))
+        : totalBudget;
 
       const payload = {
         ...formData,
@@ -85,14 +87,12 @@ function SponsorDashboard() {
         agentPhone: '540-642-6867',
       };
 
-      // Ensure radiusMiles is a number
       if (payload.radiusMiles !== '' && payload.radiusMiles !== undefined && payload.radiusMiles !== null) {
         payload.radiusMiles = Number(payload.radiusMiles);
       }
 
       const { data } = await api.post('/api/jobs', payload);
 
-      // Use the same popup for success messages
       setMessage(data.message || 'Job posted');
       setShowPopup(true);
       setTimeout(() => setShowPopup(false), 3000);
@@ -110,7 +110,7 @@ function SponsorDashboard() {
         radiusMiles: '25',
       });
       setActiveTab('posted');
-      fetchJobs();
+      await fetchJobs();
     } catch (err) {
       const msg = err?.response?.data?.error || 'Something went wrong';
       setMessage(msg);
@@ -121,42 +121,45 @@ function SponsorDashboard() {
   };
 
   const fetchJobs = async () => {
-    setLoading(true);
     try {
       const { data } = await api.get('/api/jobs/sponsor/posted-jobs');
       setJobs(data.jobs || []);
     } catch (err) {
-      console.error('Fetch error:', err);
+      console.error('Fetch jobs error:', err);
     }
-    setLoading(false);
   };
 
-  // ⬇️ NEW: lightweight fetch to keep the Pending badge updated everywhere
+  // 🔹 Fetch one-card-per-submission dataset for the Links tab
+  const fetchLinksSubmitted = async () => {
+    try {
+      const { data } = await api.get('/api/jobs/sponsor/links-submitted');
+      setLinksSubs(Array.isArray(data?.submissions) ? data.submissions : []);
+    } catch (err) {
+      console.error('Fetch links-submitted error:', err);
+      setLinksSubs([]);
+    }
+  };
+
   const refreshPendingCount = async () => {
     try {
-      // tiny page; we only need total
       const { data } = await api.get('/api/requests', {
         params: { status: 'pending', page: 1, pageSize: 1 },
       });
       setPendingReqCount(Number(data?.total || 0));
     } catch {
-      // ignore; badge is non-blocking
+      // non-blocking
     }
   };
 
-  // ⬇️ NEW: poll sponsor notifications and raise a toast when a creator request arrives
   const startSponsorPolling = () => {
     const poll = async () => {
       try {
-        // Prefer unread only; if backend ignores, we filter below
         const { data } = await api.get('/api/notifications', {
           params: { unreadOnly: true },
         });
         const list = Array.isArray(data) ? data : (data.items || data.notifications || []);
-
-        // We only care about sponsor-side alerts when creators request access
         const candidate = list.filter(
-          n => n && (n.type === 'creator_request' || n.type === 'request')
+          (n) => n && (n.type === 'creator_request' || n.type === 'request')
         );
 
         let newOnes = 0;
@@ -164,7 +167,6 @@ function SponsorDashboard() {
           const id = n._id || n.id;
           if (!id || seenNotifIdsRef.current.has(id)) continue;
 
-          // Basic message (fallbacks if meta doesn’t include names)
           const jobId = n?.meta?.jobId || 'a job';
           const who = n?.meta?.creatorName || n?.meta?.creator || 'a creator';
 
@@ -175,20 +177,15 @@ function SponsorDashboard() {
           seenNotifIdsRef.current.add(id);
           newOnes++;
         }
-
-        // If we saw new ones, bump the badge
-        if (newOnes > 0) {
-          refreshPendingCount();
-        }
+        if (newOnes > 0) refreshPendingCount();
       } catch {
-        // silent; dashboard shouldn’t spam console
+        // silent
       }
     };
 
-    // fire immediately, then every ~12s
     poll();
     const t = setInterval(poll, 12000);
-    // clean up on unmount
+    // dashboard persists in SPA; a full route reload reboots polling
     return () => clearInterval(t);
   };
 
@@ -197,7 +194,8 @@ function SponsorDashboard() {
     try {
       await api.delete(`/api/jobs/${jobId}`);
       alert('✅ Job deleted');
-      fetchJobs();
+      await fetchJobs();
+      await fetchLinksSubmitted();
     } catch (err) {
       console.error('Delete job error:', err);
       const msg = err?.response?.data?.error || '❌ Failed to delete job';
@@ -205,55 +203,224 @@ function SponsorDashboard() {
     }
   };
 
-  const renderTab = () => {
-    if (loading) return <p>Loading jobs...</p>;
-    const filteredJobs = {
-      posted: jobs.filter(job => (job.submissions?.length ?? 0) === 0),
-      accepted: jobs.filter(job => job.submissions?.some(sub => sub.status === 'Pending' && (!sub.submittedLinks || sub.submittedLinks.length === 0))),
-      links: jobs.filter(job => job.submissions?.some(sub => sub.status === 'Submitted' && sub.submittedLinks?.length > 0)),
-      past: jobs.filter(job => job.submissions?.some(sub => sub.status === 'Approved'))
-    }[activeTab];
-
-    return (
-      <ul className="job-list">
-        {filteredJobs.map((job) => (
-          <li key={job._id} className="job-card">
-            <h3>{job.title}</h3>
-            <p>{job.description}</p>
-            <p><strong>Budget:</strong> ${job.budget}</p>
-            <p><strong>Due Date:</strong> {job.dueDate?.split('T')[0]}</p>
-            <p><strong>Type:</strong> {job.jobType}</p>
-            {job.radiusMiles !== undefined && (
-              <p><strong>Radius:</strong> {job.radiusMiles} miles</p>
-            )}
-            <p><strong>Agent:</strong> {job.agentName} ({job.agentPhone})</p>
-
-            {job.submissions?.length > 0 ? (
-              <div className="submission-section">
-                <h4>Submitted Content:</h4>
-                {job.submissions.map((sub, index) => (
-                  <div key={index} className="submission-item">
-                    <p><strong>Creator ID:</strong> {sub.creatorId}</p>
-                    <p><strong>Status:</strong> {sub.status}</p>
-                    {sub.submittedLinks?.map((link, idx) => (
-                      <a key={idx} href={link} target="_blank" rel="noopener noreferrer">{link}</a>
-                    ))}
-                    <span className="badge-success">✅ Submitted</span>
-                  </div>
-                ))}
-              </div>
-            ) : (
-              <p className="no-submissions">No submissions yet.</p>
-            )}
-
-            <button className="danger-btn" style={{ marginTop: '10px' }} onClick={() => handleDelete(job._id)}>Delete Job</button>
-          </li>
-        ))}
-      </ul>
-    );
+  // 🔹 Approve / Reject handlers for one-card-per-submission
+  const handleApprove = async (acceptedJobId) => {
+    try {
+      await api.patch(`/api/jobs/sponsor/submissions/${acceptedJobId}/approve`);
+      setMessage('✅ Submission approved');
+      setShowPopup(true);
+      setTimeout(() => setShowPopup(false), 2000);
+      await fetchLinksSubmitted();
+      await fetchJobs(); // keep other tabs in sync
+    } catch (err) {
+      console.error('Approve error:', err);
+      const msg = err?.response?.data?.error || '❌ Failed to approve submission';
+      alert(msg);
+    }
   };
 
-  // ⬇️ tiny badge element (inline styles so we don’t touch CSS file)
+  const handleReject = async (acceptedJobId) => {
+    try {
+      await api.patch(`/api/jobs/sponsor/submissions/${acceptedJobId}/reject`);
+      setMessage('❌ Submission rejected');
+      setShowPopup(true);
+      setTimeout(() => setShowPopup(false), 2000);
+      await fetchLinksSubmitted();
+      await fetchJobs();
+    } catch (err) {
+      console.error('Reject error:', err);
+      const msg = err?.response?.data?.error || '❌ Failed to reject submission';
+      alert(msg);
+    }
+  };
+
+  // ✅ Tabbing logic without duplicate “two boxes for one job”
+  const computeFilteredJobs = () => {
+    const posted = jobs.filter((job) => (job.submissions?.length ?? 0) === 0);
+
+    const accepted = jobs.filter((job) =>
+      job.submissions?.some(
+        (sub) =>
+          String(sub.status) === 'Pending' &&
+          (!Array.isArray(sub.submittedLinks) || sub.submittedLinks.length === 0)
+      )
+    );
+
+    const past = jobs.filter((job) =>
+      job.submissions?.some((sub) => String(sub.status) === 'Approved')
+    );
+
+    return { posted, accepted, past };
+  };
+
+  const renderTab = () => {
+    if (loading) return <p>Loading jobs...</p>;
+
+    const { posted, accepted, past } = computeFilteredJobs();
+
+    if (activeTab === 'links') {
+      // 🔹 Single card per submission, fed by dedicated endpoint
+      return (
+        <ul className="job-list">
+          {linksSubs.map((sub) => (
+            <li key={sub.acceptedJobId} className="job-card">
+              <h3>{sub.title || 'Untitled Job'}</h3>
+              <p>{sub.description}</p>
+              <p><strong>Budget:</strong> ${sub.budget}</p>
+              {sub.dueDate && (
+                <p><strong>Due Date:</strong> {String(sub.dueDate).split('T')[0]}</p>
+              )}
+              <p><strong>Type:</strong> {sub.jobType}</p>
+
+              {/* Consistent info block */}
+              {typeof sub.radiusMiles === 'number' && (
+                <p><strong>Radius:</strong> {sub.radiusMiles} miles</p>
+              )}
+              <p><strong>Agent Name:</strong> {sub.agentName || '—'}</p>
+              <p><strong>Agent Contact:</strong> {sub.agentPhone || '—'}</p>
+
+              <div className="submission-section" style={{ marginTop: 10 }}>
+                <p><strong>Creator ID:</strong> {sub.creatorId}</p>
+                <p><strong>Status:</strong> {sub.status}</p>
+
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                  {(sub.submittedLinks || []).map((href, i) => (
+                    <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                      <a href={href} target="_blank" rel="noopener noreferrer">{href}</a>
+                      <span
+                        style={{
+                          padding: '2px 8px',
+                          borderRadius: 999,
+                          background: '#e6f7ec',
+                          color: '#1a7f37',
+                          fontSize: 12,
+                          fontWeight: 700,
+                        }}
+                      >
+                        ✅ Submitted
+                      </span>
+                    </div>
+                  ))}
+                </div>
+
+                <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
+                  <button
+                    className="approve-btn"
+                    onClick={() => handleApprove(sub.acceptedJobId)}
+                    title="Approve submission"
+                  >
+                    ✅ Approve
+                  </button>
+                  <button
+                    className="reject-btn"
+                    onClick={() => handleReject(sub.acceptedJobId)}
+                    title="Reject submission"
+                  >
+                    ❌ Reject
+                  </button>
+                </div>
+              </div>
+            </li>
+          ))}
+          {linksSubs.length === 0 && <p>No submissions yet.</p>}
+        </ul>
+      );
+    }
+
+    if (activeTab === 'posted') {
+      return (
+        <ul className="job-list">
+          {posted.map((job) => (
+            <li key={job._id} className="job-card">
+              <h3>{job.title}</h3>
+              <p>{job.description}</p>
+              <p><strong>Budget:</strong> ${job.budget}</p>
+              {job.dueDate && <p><strong>Due Date:</strong> {String(job.dueDate).split('T')[0]}</p>}
+              <p><strong>Type:</strong> {job.jobType}</p>
+              {job.radiusMiles !== undefined && (
+                <p><strong>Radius:</strong> {job.radiusMiles} miles</p>
+              )}
+              <p><strong>Agent Name:</strong> {job.agentName || '—'}</p>
+              <p><strong>Agent Contact:</strong> {job.agentPhone || '—'}</p>
+
+              {/* No nested submissions here to avoid double boxes */}
+              <p className="no-submissions">No submissions yet.</p>
+
+              <button
+                className="danger-btn"
+                style={{ marginTop: '10px' }}
+                onClick={() => handleDelete(job._id)}
+              >
+                Delete Job
+              </button>
+            </li>
+          ))}
+          {posted.length === 0 && <p>No posted jobs.</p>}
+        </ul>
+      );
+    }
+
+    if (activeTab === 'accepted') {
+      return (
+        <ul className="job-list">
+          {accepted.map((job) => (
+            <li key={job._id} className="job-card">
+              <h3>{job.title}</h3>
+              <p>{job.description}</p>
+              <p><strong>Budget:</strong> ${job.budget}</p>
+              {job.dueDate && <p><strong>Due Date:</strong> {String(job.dueDate).split('T')[0]}</p>}
+              <p><strong>Type:</strong> {job.jobType}</p>
+              {job.radiusMiles !== undefined && (
+                <p><strong>Radius:</strong> {job.radiusMiles} miles</p>
+              )}
+              <p><strong>Agent Name:</strong> {job.agentName || '—'}</p>
+              <p><strong>Agent Contact:</strong> {job.agentPhone || '—'}</p>
+
+              {/* Simple status note */}
+              <span className="badge-warning">⏳ Accepted — awaiting links</span>
+
+              <button
+                className="danger-btn"
+                style={{ marginTop: '10px' }}
+                onClick={() => handleDelete(job._id)}
+              >
+                Delete Job
+              </button>
+            </li>
+          ))}
+          {accepted.length === 0 && <p>No accepted jobs waiting for links.</p>}
+        </ul>
+      );
+    }
+
+    if (activeTab === 'past') {
+      return (
+        <ul className="job-list">
+          {past.map((job) => (
+            <li key={job._id} className="job-card">
+              <h3>{job.title}</h3>
+              <p>{job.description}</p>
+              <p><strong>Budget:</strong> ${job.budget}</p>
+              {job.dueDate && <p><strong>Due Date:</strong> {String(job.dueDate).split('T')[0]}</p>}
+              <p><strong>Type:</strong> {job.jobType}</p>
+              {job.radiusMiles !== undefined && (
+                <p><strong>Radius:</strong> {job.radiusMiles} miles</p>
+              )}
+              <p><strong>Agent Name:</strong> {job.agentName || '—'}</p>
+              <p><strong>Agent Contact:</strong> {job.agentPhone || '—'}</p>
+
+              {/* Summary only — no nested submission items */}
+              <span className="badge-success">✅ At least one submission approved</span>
+            </li>
+          ))}
+          {past.length === 0 && <p>No past (approved) jobs yet.</p>}
+        </ul>
+      );
+    }
+
+    return null;
+  };
+
   const badge = (count) =>
     count > 0 ? (
       <span
@@ -282,26 +449,72 @@ function SponsorDashboard() {
   return (
     <div className="dashboard-wrapper">
       <div className="form-section">
-        <h1>
-          Sponsor Dashboard
-        </h1>
+        <h1>Sponsor Dashboard</h1>
         <h2 style={{ marginBottom: '10px' }}>👋 Welcome, {userName}!</h2>
 
         {/* TABS */}
         <div className="tabs" style={{ marginBottom: '20px' }}>
-          <button className={activeTab === 'posted' ? 'active-tab' : ''} onClick={() => setActiveTab('posted')}>Posted Jobs</button>
-          <button className={activeTab === 'accepted' ? 'active-tab' : ''} onClick={() => setActiveTab('accepted')}>Accepted Jobs</button>
-          <button className={activeTab === 'links' ? 'active-tab' : ''} onClick={() => setActiveTab('links')}>Links Submitted</button>
-          <button className={activeTab === 'past' ? 'active-tab' : ''} onClick={() => setActiveTab('past')}>Past Jobs</button>
+          <button
+            className={activeTab === 'posted' ? 'active-tab' : ''}
+            onClick={() => setActiveTab('posted')}
+          >
+            Posted Jobs
+          </button>
+          <button
+            className={activeTab === 'accepted' ? 'active-tab' : ''}
+            onClick={() => setActiveTab('accepted')}
+          >
+            Accepted Jobs
+          </button>
+          <button
+            className={activeTab === 'links' ? 'active-tab' : ''}
+            onClick={() => {
+              setActiveTab('links');
+              fetchLinksSubmitted();
+            }}
+          >
+            Links Submitted
+          </button>
+          <button
+            className={activeTab === 'past' ? 'active-tab' : ''}
+            onClick={() => setActiveTab('past')}
+          >
+            Past Jobs
+          </button>
         </div>
 
-        {/* FORM */}
+        {/* FORM (only in Posted tab) */}
         {activeTab === 'posted' && (
           <form onSubmit={handleSubmit} className="job-form">
-            <input name="title" value={formData.title} onChange={handleChange} placeholder="Job Title" required />
-            <textarea name="description" value={formData.description} onChange={handleChange} placeholder="Job Description" required />
-            <input name="budget" value={formData.budget} onChange={handleChange} placeholder="Budget" type="number" required />
-            <input name="dueDate" value={formData.dueDate} onChange={handleChange} type="date" required />
+            <input
+              name="title"
+              value={formData.title}
+              onChange={handleChange}
+              placeholder="Job Title"
+              required
+            />
+            <textarea
+              name="description"
+              value={formData.description}
+              onChange={handleChange}
+              placeholder="Job Description"
+              required
+            />
+            <input
+              name="budget"
+              value={formData.budget}
+              onChange={handleChange}
+              placeholder="Budget"
+              type="number"
+              required
+            />
+            <input
+              name="dueDate"
+              value={formData.dueDate}
+              onChange={handleChange}
+              type="date"
+              required
+            />
 
             <label>
               <strong>Job Type:</strong>
@@ -311,7 +524,6 @@ function SponsorDashboard() {
               </select>
             </label>
 
-            {/* Radius (miles) for Location Based */}
             {formData.jobType === 'locationBased' && (
               <label className="inline-label">
                 <span><strong>Radius (miles):</strong></span>
@@ -327,20 +539,31 @@ function SponsorDashboard() {
             )}
 
             <label>
-              <input type="checkbox" name="multiple" checked={formData.multiple} onChange={handleChange} />
+              <input
+                type="checkbox"
+                name="multiple"
+                checked={formData.multiple}
+                onChange={handleChange}
+              />
               Post this job multiple times?
             </label>
             {formData.multiple && (
-              <input type="number" name="repeatCount" value={formData.repeatCount} onChange={handleChange} placeholder="Repeat Count" min="1" />
+              <input
+                type="number"
+                name="repeatCount"
+                value={formData.repeatCount}
+                onChange={handleChange}
+                placeholder="Repeat Count"
+                min="1"
+              />
             )}
             <button type="submit">Submit Job</button>
           </form>
         )}
 
-        {/* Success / popup messages (job posted OR new request) */}
         {showPopup && <div className="success-popup">✅ {message}</div>}
 
-        {/* Posted/Accepted/Links/Past lists */}
+        {/* Lists */}
         <div className="job-results" style={{ marginTop: '40px' }}>
           {renderTab()}
         </div>
@@ -362,7 +585,6 @@ function SponsorDashboard() {
           Home
         </button>
 
-        {/* ⬇️ Requests Inbox with live badge */}
         <button
           className="inbox-btn"
           style={{ backgroundColor: 'purple', color: 'white', marginRight: '10px', position: 'relative' }}

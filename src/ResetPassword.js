@@ -1,76 +1,154 @@
-import React, { useState } from 'react';
-import axios from 'axios';
-import { useParams, useNavigate } from 'react-router-dom';
-import './ResetPassword.css';
+// src/ResetPassword.jsx
+import React, { useEffect, useMemo, useState } from 'react';
+import { useLocation, useParams, useNavigate } from 'react-router-dom';
+import { api } from './api/axios';
 
-function ResetPassword() {
-  const { token } = useParams();
+export default function ResetPassword() {
+  const { token: tokenFromParam } = useParams();
+  const location = useLocation();
   const navigate = useNavigate();
-  const [password, setPassword] = useState('');
-  const [confirmPassword, setConfirmPassword] = useState('');
-  const [showPassword, setShowPassword] = useState(false);
-  const [message, setMessage] = useState('');
 
-  const togglePasswordVisibility = () => {
-    setShowPassword((prev) => !prev);
-  };
+  // Accept either /reset-password?token=...&email=... or /reset-password/:token
+  const { token, email } = useMemo(() => {
+    const qs = new URLSearchParams(location.search);
+    return {
+      token: tokenFromParam || qs.get('token') || '',
+      email: (qs.get('email') || '').toLowerCase(),
+    };
+  }, [location.search, tokenFromParam]);
 
-  const handleReset = async (e) => {
+  const [pwd, setPwd] = useState('');
+  const [pwd2, setPwd2] = useState('');
+  const [show, setShow] = useState(false);
+  const [err, setErr] = useState('');
+  const [ok, setOk] = useState('');
+  const [busy, setBusy] = useState(false);
+
+  // 🚦 If there is no token (user clicked "Reset it" on Login), send them to the email request page
+  useEffect(() => {
+    if (!token) navigate('/forgot-password', { replace: true });
+  }, [token, navigate]);
+
+  async function handleSubmit(e) {
     e.preventDefault();
+    setErr('');
+    setOk('');
 
-    if (password !== confirmPassword) {
-      setMessage('❌ Passwords do not match.');
-      return;
-    }
-
-    const API_BASE_URL =
-      window.location.hostname === 'localhost'
-        ? 'http://localhost:5000'
-        : process.env.REACT_APP_API_URL;
+    if (!token) return; // safety
+    if (!pwd || pwd.length < 8) return setErr('Password must be at least 8 characters.');
+    if (pwd !== pwd2) return setErr('Passwords do not match.');
 
     try {
-      await axios.post(`${API_BASE_URL}/api/reset-password/${token}`, {
-        password,
+      setBusy(true);
+      const res = await api.post('/api/auth/reset-password', {
+        token,
+        email,            // present when coming from the email link; harmless if empty
+        newPassword: pwd, // backend expects newPassword
       });
 
-      setMessage('✅ Password reset successful. Redirecting...');
-      setTimeout(() => navigate('/login'), 2000);
-    } catch (err) {
-      console.error('Reset error:', err.response?.data || err.message);
-      setMessage('❌ Error resetting password. Token may be invalid or expired.');
-    }
-  };
+      if (res.status !== 200) throw new Error(res.data?.message || 'Reset failed');
 
+      setOk('Password reset successful! Redirecting to login…');
+      setTimeout(() => navigate('/login'), 1000);
+    } catch (e2) {
+      const msg =
+        e2?.response?.data?.message ||
+        e2?.response?.data?.error ||
+        e2?.message ||
+        'Reset failed';
+      setErr(/expired|invalid/i.test(msg)
+        ? 'Token may be invalid or expired. Please request a new link.'
+        : `Error resetting password. ${msg}`);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  // ===== UI (consistent with your Login card; inputs sit fully inside the gold panel) =====
   return (
-    <div className="reset-container">
-      <form className="reset-form" onSubmit={handleReset}>
-        <h2>Reset Your Password</h2>
+    <div style={{ minHeight: '100vh', display: 'grid', placeItems: 'center', background: '#FFF8E1' }}>
+      <form onSubmit={handleSubmit} style={{
+        width: 760,
+        maxWidth: '92vw',
+        background: '#E5BC3F',
+        borderRadius: 18,
+        boxShadow: '0 18px 40px rgba(0,0,0,0.18)',
+        padding: 24,
+        boxSizing: 'border-box'
+      }}>
+        <h2 style={{ textAlign: 'center', margin: '6px 0 18px', fontWeight: 800 }}>
+          Reset Your Password
+        </h2>
+
+        {!!email && (
+          <p style={{ textAlign: 'center', marginTop: -8, marginBottom: 14, opacity: 0.85 }}>
+            for <strong>{email}</strong>
+          </p>
+        )}
+
         <input
-          type={showPassword ? 'text' : 'password'}
+          type={show ? 'text' : 'password'}
+          value={pwd}
+          onChange={(e) => setPwd(e.target.value)}
           placeholder="New password"
-          value={password}
-          onChange={(e) => setPassword(e.target.value)}
-          required
+          style={{
+            display: 'block',
+            width: '100%',
+            margin: '0 0 12px 0',
+            padding: 14,
+            borderRadius: 10,
+            border: '1px solid #ddd',
+            outline: 'none',
+            boxSizing: 'border-box',
+            background: '#fff'
+          }}
         />
+
         <input
-          type={showPassword ? 'text' : 'password'}
+          type={show ? 'text' : 'password'}
+          value={pwd2}
+          onChange={(e) => setPwd2(e.target.value)}
           placeholder="Confirm new password"
-          value={confirmPassword}
-          onChange={(e) => setConfirmPassword(e.target.value)}
-          required
+          style={{
+            display: 'block',
+            width: '100%',
+            margin: '0 0 12px 0',
+            padding: 14,
+            borderRadius: 10,
+            border: '1px solid #ddd',
+            outline: 'none',
+            boxSizing: 'border-box',
+            background: '#fff'
+          }}
         />
-        <label style={{ display: 'block', marginTop: '10px' }}>
-          <input
-            type="checkbox"
-            checked={showPassword}
-            onChange={togglePasswordVisibility}
-          /> Show Password
+
+        <label style={{ display: 'flex', alignItems: 'center', gap: 8, margin: '0 0 14px 0' }}>
+          <input type="checkbox" checked={show} onChange={(e) => setShow(e.target.checked)} />
+          <span>Show Password</span>
         </label>
-        <button type="submit">Reset Password</button>
-        {message && <p className="message">{message}</p>}
+
+        <button
+          type="submit"
+          disabled={busy}
+          style={{
+            display: 'block',
+            width: '100%',
+            padding: '13px 18px',
+            borderRadius: 12,
+            border: 'none',
+            background: '#000',
+            color: '#fff',
+            fontWeight: 800,
+            cursor: busy ? 'not-allowed' : 'pointer',
+            opacity: busy ? 0.8 : 1
+          }}
+        >
+          {busy ? 'Working…' : 'Reset Password'}
+        </button>
+
+        {err && <p style={{ color: '#c00', fontWeight: 700, marginTop: 14 }}>✘ {err}</p>}
+        {ok  && <p style={{ color: '#0a0', fontWeight: 700, marginTop: 14 }}>✔ {ok}</p>}
       </form>
     </div>
   );
 }
-
-export default ResetPassword;

@@ -17,15 +17,12 @@ import EmailConfirm from './pages/EmailConfirm';
 import ResendEmail from './pages/ResendEmail';
 import Settings from './pages/Settings';
 import SponsorRequests from './pages/sponsorrequests';
-import CreatorRequests from './pages/CreatorRequests.js'; // MUST match the file below
+import CreatorRequests from './pages/CreatorRequests.js';
 
-// useAuth must be called unconditionally
 import { useAuth } from './auth/AuthProvider';
 
 function App() {
-  const { user, loading } = useAuth(); // <-- unconditioned hook call
-
-  // Wait for auth rehydrate to avoid false redirects on refresh
+  const { user, loading } = useAuth();
   if (loading) return null;
 
   const dashFor = (u) => {
@@ -38,25 +35,23 @@ function App() {
   return (
     <Routes>
       {/* Smart Home */}
-      <Route
-        path="/"
-        element={user ? <Navigate to={dashFor(user)} replace /> : <Landing />}
-      />
-      <Route
-        path="/home"
-        element={user ? <Navigate to={dashFor(user)} replace /> : <Landing />}
-      />
+      <Route path="/" element={user ? <Navigate to={dashFor(user)} replace /> : <Landing />} />
+      <Route path="/home" element={user ? <Navigate to={dashFor(user)} replace /> : <Landing />} />
 
       {/* Public */}
       <Route path="/signup" element={<Signup />} />
       <Route path="/login" element={<Login />} />
       <Route path="/forgot-password" element={<ForgotPassword />} />
+
+      {/* Support BOTH patterns: /reset-password?token=... and /reset-password/:token */}
+      <Route path="/reset-password" element={<ResetPassword />} />
       <Route path="/reset-password/:token" element={<ResetPassword />} />
+
       <Route path="/confirm-email/:token" element={<EmailConfirm />} />
       <Route path="/resend-confirmation" element={<ResendEmail />} />
       <Route path="/intro" element={<DashboardIntro />} />
 
-      {/* Protected (any logged-in user) */}
+      {/* Protected */}
       <Route
         path="/settings"
         element={
@@ -115,13 +110,7 @@ function App() {
       {/* Fallback */}
       <Route
         path="*"
-        element={
-          user ? (
-            <Navigate to={dashFor(user)} replace />
-          ) : (
-            <Navigate to="/login" replace />
-          )
-        }
+        element={user ? <Navigate to={dashFor(user)} replace /> : <Navigate to="/login" replace />}
       />
     </Routes>
   );

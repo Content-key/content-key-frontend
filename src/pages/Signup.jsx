@@ -1,9 +1,10 @@
 // src/pages/Signup.jsx
 import React, { useState } from 'react';
-import axios from 'axios';
 import { useNavigate, Link } from 'react-router-dom';
 
-// ✅ paths fixed after moving into src/pages/
+// use the shared axios instance (adds baseURL + auth headers)
+import { api } from '../api/axios';
+
 import '../Signup.css';
 import useRedirectIfAuthed from '../hooks/useRedirectIfAuthed';
 
@@ -16,7 +17,7 @@ function Signup() {
     email: '',
     password: '',
     phone: '',
-    role: 'creator',
+    role: 'creator', // UI keeps lowercase; we'll normalize on submit
     fullName: '',
     stageName: '',
     businessName: '',
@@ -49,19 +50,24 @@ function Signup() {
     if (submitting) return;
     setSubmitting(true);
 
-    const API_BASE_URL =
-      window.location.hostname === 'localhost'
-        ? 'http://localhost:5000'
-        : process.env.REACT_APP_API_URL;
+    // Normalize role to match backend expectations (e.g., "Creator" | "Sponsor")
+    const roleNormalized =
+      (formData.role || '').toLowerCase() === 'sponsor' ? 'Sponsor' : 'Creator';
 
     try {
-      const res = await axios.post(`${API_BASE_URL}/api/signup`, formData, { withCredentials: true });
+      const payload = { ...formData, role: roleNormalized };
+
+      // ✅ Correct path + no withCredentials
+      const res = await api.post('/api/auth/signup', payload);
+
       console.log('[Signup] success payload:', res?.data);
 
       localStorage.setItem('ck_prefill_email', formData.email || '');
       const emailQS = encodeURIComponent(formData.email || '');
       const dest = `/login?flash=signup_success&email=${emailQS}`;
       navigate(dest, { replace: true });
+
+      // hard guard if navigation is blocked by something
       setTimeout(() => {
         if (!/\/login(\?|$)/.test(window.location.pathname + window.location.search)) {
           window.location.assign(dest);
