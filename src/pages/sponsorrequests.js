@@ -7,7 +7,7 @@ import './SponsorDashboard.css';
 export default function SponsorRequests() {
   const navigate = useNavigate();
 
-  const [activeTab, setActiveTab] = useState('pending'); // 'pending' | 'resolved' | 'all'
+  const [activeTab, setActiveTab] = useState('pending'); // 'pending' | 'resolved'
   const [items, setItems] = useState([]);
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(1);
@@ -43,10 +43,8 @@ export default function SponsorRequests() {
     setLoading(true);
     setError('');
     try {
-      // Use the rich inbox endpoint for all tabs (supports status=pending|resolved|all)
-      const { data } = await api.get('/api/requests/inbox', {
-        params: { status },
-      });
+      // Use the rich inbox endpoint for tabs (supports status=pending|resolved)
+      const { data } = await api.get('/api/requests/inbox', { params: { status } });
 
       const arr = toArray(data);
       setItems(arr);
@@ -109,7 +107,30 @@ export default function SponsorRequests() {
     }
   };
 
-  // 🧹 NEW: soft-archive resolved requests (optionally older than N days)
+  // 🗑️ NEW: delete a single resolved request (only visible in Resolved tab)
+  const removeResolved = async (id) => {
+    const prev = items;
+    // Optimistic remove
+    setItems((list) => list.filter((r) => (r._id || r.id) !== id));
+    try {
+      await api.delete(`/api/requests/${id}`);
+      showToast('🗑️ Deleted resolved request');
+      // keep badge unchanged; refresh list if needed
+    } catch (e) {
+      console.error('Delete resolved error:', e);
+      setItems(prev); // rollback
+      const status = e?.response?.status;
+      if (status === 403) {
+        showToast('Only resolved requests you own can be deleted');
+      } else if (status === 404) {
+        showToast('Already deleted');
+      } else {
+        showToast('Failed to delete');
+      }
+    }
+  };
+
+  // 🧹 Clear Resolved (only show on Resolved tab)
   const clearResolved = async () => {
     const older = window.prompt('Archive resolved requests older than how many days? (Leave blank for ALL)', '');
     const olderNum = older && !Number.isNaN(Number(older)) && Number(older) > 0 ? Number(older) : null;
@@ -181,7 +202,7 @@ export default function SponsorRequests() {
           <button onClick={() => fetchData(activeTab, page)}>Refresh</button>
         </div>
 
-        {/* Tabs */}
+        {/* Tabs (only Pending + Resolved) */}
         <div className="tabs" style={{ marginBottom: 16 }}>
           <button
             className={activeTab === 'pending' ? 'active-tab' : ''}
@@ -212,12 +233,6 @@ export default function SponsorRequests() {
             onClick={() => onTab('resolved')}
           >
             Resolved
-          </button>
-          <button
-            className={activeTab === 'all' ? 'active-tab' : ''}
-            onClick={() => onTab('all')}
-          >
-            All
           </button>
         </div>
 
@@ -293,9 +308,19 @@ export default function SponsorRequests() {
                         </button>
                       </div>
                     ) : (
-                      <p style={{ marginTop: 6 }}>
-                        <strong>Status:</strong> {r.status || '—'}
-                      </p>
+                      /* Resolved view: show status + Delete button */
+                      <div style={{ display: 'flex', gap: 10, marginTop: 10, alignItems: 'center' }}>
+                        <p style={{ margin: 0 }}>
+                          <strong>Status:</strong> {r.status || '—'}
+                        </p>
+                        <button
+                          className="danger-btn"
+                          title="Delete this resolved request"
+                          onClick={() => removeResolved(id)}
+                        >
+                          Delete
+                        </button>
+                      </div>
                     )}
                   </li>
                 );
@@ -303,7 +328,7 @@ export default function SponsorRequests() {
             </ul>
           )}
 
-          {/* Pagination controls kept for parity (not needed for inbox right now) */}
+          {/* Pagination controls kept for parity (not required for inbox right now) */}
           <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
             <button onClick={prevPage} disabled={page <= 1}>Prev</button>
             <span style={{ alignSelf: 'center' }}>
